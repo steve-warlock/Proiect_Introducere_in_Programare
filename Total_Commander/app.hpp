@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <string>
+#include <vector>
 #include <stack>
 #include <queue>
 
@@ -25,6 +26,8 @@ class Total_Commander{
         Total_Commander();
        ~Total_Commander();
 
+    void run();
+    bool closed();
 
 
 };
