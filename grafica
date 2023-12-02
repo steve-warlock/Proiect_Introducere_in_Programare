@@ -1,0 +1,26 @@
+#include <iostream>
+#include <graphics.h>
+#include <winbgim.h>
+using namespace std;
+int main()
+{
+//    int gd=DETECT, gm;
+//    initgraph(&gd,&gm,"");
+    int x=getmaxwidth();
+    int y=getmaxheight();
+    initwindow(2*x/3,2*y/3);
+    setbkcolor(WHITE);
+    cleardevice();
+    x=getmaxx();
+    y=getmaxy();
+    cout<<x<<' '<<y;
+    setcolor(BLACK);
+    line(0,x/70,x,x/70);
+    line(0,x/70*3,x,x/70*3);
+    line(0,x/70*4,x,x/70*4);
+    line(0,x/70*5,x,x/70*5);
+    line(y/2,x/70*5,y/2,x);
+    getch();
+    closegraph();
+    return 0;
+}
