@@ -1,13 +1,8 @@
-//
-//  main.cpp
-//  Total_Commander
-//
-//  Created by Steve Warlock on 02.12.2023.
-//
-
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <filesystem>
+#include <string>
+
 
 namespace fs = std::filesystem;
 
@@ -49,7 +44,7 @@ void drawSidebar(sf::RenderWindow& window, const std::string& leftDirectory, con
     try {
         fs::space_info leftSpace = fs::space(leftDirectory);
         std::size_t leftFreeSpaceGB = leftSpace.available / (1024 * 1024 * 1024); // Convert bytes to GB
-        leftDiskSpaceInfo += std::to_string(leftFreeSpaceGB) + " GB out of ";
+        leftDiskSpaceInfo += std::to_string(leftFreeSpaceGB) + " GB out of " + std::to_string(leftSpace.capacity / (1024 * 1024 * 1024)) + " GB";
     }
     catch (std::exception& e) {
         std::cout << "Exception: " << e.what() << std::endl;
@@ -65,7 +60,7 @@ void drawSidebar(sf::RenderWindow& window, const std::string& leftDirectory, con
     try {
         fs::space_info rightSpace = fs::space(rightDirectory);
         std::size_t rightFreeSpaceGB = rightSpace.available / (1024 * 1024 * 1024); // Convert bytes to GB
-        rightDiskSpaceInfo += std::to_string(rightFreeSpaceGB) + " GB out of ";
+        rightDiskSpaceInfo += std::to_string(rightFreeSpaceGB) + " GB out of " + std::to_string(rightSpace.capacity / (1024 * 1024 * 1024)) + " GB";
     }
     catch (std::exception& e) {
         std::cout << "Exception: " << e.what() << std::endl;
@@ -73,15 +68,41 @@ void drawSidebar(sf::RenderWindow& window, const std::string& leftDirectory, con
     }
 
     text.setString(rightDiskSpaceInfo);
-    text.setPosition(640.0f, 10.0f); // Position the right sidebar at the top
+    text.setPosition(660.0f, 15.0f); // Position the right sidebar at the top
     window.draw(text);
 }
 
+void Check_OS(std::string& os)
+{
+     
+    #ifdef _WIN32
+        os = "Windows";
+    #elif __APPLE__
+        os = "macOS";
+    #elif __linux__
+        os = "Linux";
+    #endif
+}
+
 int main() {
+    std::string leftDirectory;
+    std::string rightDirectory;
+    std::string osName = "";
     sf::RenderWindow window(sf::VideoMode(1280, 720), "Total Commander", sf::Style::Titlebar | sf::Style::Default | sf::Style::Close);
 
-    std::string leftDirectory = "//"; // Left panel directory
-    std::string rightDirectory = "//"; // Right panel directory
+    Check_OS(osName);
+    
+    if(!osName.compare("Linux") || !osName.compare("macOS"))
+    {
+        leftDirectory = "//"; // Left panel directory
+        rightDirectory = "//"; // Right panel directory
+    }
+    else
+    {
+        leftDirectory = "C:\\";
+        rightDirectory = "D:\\";
+    }
+    
 
     while (window.isOpen()) {
         sf::Event event;
@@ -96,10 +117,10 @@ int main() {
         drawSidebar(window, leftDirectory, rightDirectory);
 
         // Draw files in the left panel
-        drawFiles(window, leftDirectory, 50.0f, 50.0f);
+        drawFiles(window, leftDirectory, 60.0f, 50.0f);
 
         // Draw files in the right panel
-        drawFiles(window, rightDirectory, 640.0f, 50.0f); // Starting X-position for the right panel adjusted
+        drawFiles(window, rightDirectory, 650.0f, 50.0f); // Starting X-position for the right panel adjusted
 
         window.display();
     }
