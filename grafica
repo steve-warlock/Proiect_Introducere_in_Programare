@@ -1,26 +1,165 @@
+
+#include <SFML/Graphics.hpp>
+//#include <Windows.h>
 #include <iostream>
-#include <graphics.h>
-#include <winbgim.h>
-using namespace std;
-int main()
+void createPanel(const::std::string,int height, int width, int x, int y)
 {
-//    int gd=DETECT, gm;
-//    initgraph(&gd,&gm,"");
-    int x=getmaxwidth();
-    int y=getmaxheight();
-    initwindow(2*x/3,2*y/3);
-    setbkcolor(WHITE);
-    cleardevice();
-    x=getmaxx();
-    y=getmaxy();
-    cout<<x<<' '<<y;
-    setcolor(BLACK);
-    line(0,x/70,x,x/70);
-    line(0,x/70*3,x,x/70*3);
-    line(0,x/70*4,x,x/70*4);
-    line(0,x/70*5,x,x/70*5);
-    line(y/2,x/70*5,y/2,x);
-    getch();
-    closegraph();
+
+}
+int main() {
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Total Commander");
+
+    sf::RectangleShape firstPanel;
+    firstPanel.setSize(sf::Vector2f(615, 600));
+    firstPanel.setFillColor(sf::Color(176, 176, 176));
+    firstPanel.setPosition(0,60);
+
+    sf::RectangleShape secondPanel;
+    secondPanel.setSize(sf::Vector2f(615, 600)); 
+    secondPanel.setFillColor(sf::Color(176, 176, 176));
+    secondPanel.setPosition(640, 60);
+
+    sf::RectangleShape firstScroll;
+    firstScroll.setSize(sf::Vector2f(25, 600)); 
+    firstScroll.setFillColor(sf::Color::White);
+    firstScroll.setPosition(615, 60);
+
+    sf::RectangleShape secondScroll;
+    secondScroll.setSize(sf::Vector2f(25, 600)); 
+    secondScroll.setFillColor(sf::Color::White);
+    secondScroll.setPosition(1255, 60); 
+
+    sf::RectangleShape l1;
+    l1.setSize(sf::Vector2f(1280, 2));
+    l1.setFillColor(sf::Color::Black);
+    l1.setPosition(0, 30);
+
+    sf::RectangleShape l2;
+    l2.setSize(sf::Vector2f(1280, 4));
+    l2.setFillColor(sf::Color::Black);
+    l2.setPosition(0, 60);
+
+    sf::RectangleShape l3;
+    l3.setSize(sf::Vector2f(1280, 2));
+    l3.setFillColor(sf::Color::Black);
+    l3.setPosition(0, 660);
+
+    sf::RectangleShape l4;
+    l4.setSize(sf::Vector2f(1280, 4));
+    l4.setFillColor(sf::Color::Black);
+    l4.setPosition(0, 690);
+
+    sf::RectangleShape l5;
+    l5.setSize(sf::Vector2f(3,690));
+    l5.setFillColor(sf::Color::Black);
+    l5.setPosition(640, 0);
+
+    sf::RectangleShape l6;
+    l6.setSize(sf::Vector2f(2, 600));
+    l6.setFillColor(sf::Color::Black);
+    l6.setPosition(1255, 60);
+
+    sf::RectangleShape l7;
+    l7.setSize(sf::Vector2f(2, 600));
+    l7.setFillColor(sf::Color::Black);
+    l7.setPosition(615, 60);
+
+    sf::RectangleShape l8;
+    l8.setSize(sf::Vector2f(1280, 4));
+    l8.setFillColor(sf::Color::Black);
+    l8.setPosition(0, 90);
+
+    sf::RectangleShape l11;
+    l11.setSize(sf::Vector2f(1280, 2));
+    l11.setFillColor(sf::Color::Black);
+    l11.setPosition(0, 630);
+
+    sf::RectangleShape l12;
+    l12.setSize(sf::Vector2f(5, 30));
+    l12.setFillColor(sf::Color::Black);
+    l12.setPosition(252, 690);
+
+    sf::RectangleShape l13;
+    l13.setSize(sf::Vector2f(5, 30));
+    l13.setFillColor(sf::Color::Black);
+    l13.setPosition(509, 690);
+
+    sf::RectangleShape l14;
+    l14.setSize(sf::Vector2f(5, 30));
+    l14.setFillColor(sf::Color::Black);
+    l14.setPosition(766, 690);
+
+    sf::RectangleShape l15;
+    l15.setSize(sf::Vector2f(5, 30));
+    l15.setFillColor(sf::Color::Black);
+    l15.setPosition(1023, 690);
+
+    sf::RectangleShape l16;
+    l16.setSize(sf::Vector2f(4, 30));
+    l16.setFillColor(sf::Color::Black);
+    l16.setPosition(270, 60);
+
+    sf::RectangleShape l17;
+    l17.setSize(sf::Vector2f(4, 30));
+    l17.setFillColor(sf::Color::Black);
+    l17.setPosition(355, 60);
+
+    sf::RectangleShape l18;
+    l18.setSize(sf::Vector2f(4, 30));
+    l18.setFillColor(sf::Color::Black);
+    l18.setPosition(440, 60);
+
+    sf::RectangleShape l19;
+    l19.setSize(sf::Vector2f(4, 30));
+    l19.setFillColor(sf::Color::Black);
+    l19.setPosition(910, 60);
+
+    sf::RectangleShape l20;
+    l20.setSize(sf::Vector2f(4, 30));
+    l20.setFillColor(sf::Color::Black);
+    l20.setPosition(995, 60);
+
+    sf::RectangleShape l21;
+    l21.setSize(sf::Vector2f(4, 30));
+    l21.setFillColor(sf::Color::Black);
+    l21.setPosition(1080, 60);
+
+    
+
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+        }
+
+        window.clear(sf::Color(129, 129, 129));
+        window.draw(firstPanel);
+        window.draw(secondPanel);
+        window.draw(firstScroll);
+        window.draw(secondScroll);
+        window.draw(l1);
+        window.draw(l2);
+        window.draw(l3);
+        window.draw(l4);
+        window.draw(l5);
+        window.draw(l6);
+        window.draw(l7);
+        window.draw(l8);
+        window.draw(l11);
+        window.draw(l12);
+        window.draw(l13);
+        window.draw(l14);
+        window.draw(l15);
+        window.draw(l16);
+        window.draw(l17);
+        window.draw(l18);
+        window.draw(l19);
+        window.draw(l20);
+        window.draw(l21);
+        window.display();
+    }
+
     return 0;
 }
