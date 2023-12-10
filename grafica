@@ -58,17 +58,13 @@ int main() {
     bar(0, 630, 1280, 632);
     bar(0,660,1280,662);
 
-
+    // comenzi rapide
      DrawButton(252, 690, 257, 720, (char*) "F2 Rename");
      DrawButton(509, 690, 514, 720, (char*)"F3 Mkdir");
      DrawButton(766, 690, 771, 720, (char*)"F4 Copy");
      DrawButton(1023, 690, 1028, 720, (char*)"F5 Delete");
-     //DrawButton(1035, 690, 1280, 720, (char*) "F6 Move");
+     DrawButton(1295, 690, 1280, 720, (char*) "F6 Move");
 
-    //butoanele de jos (comenzile rapide)
-   // bar(509, 690, 514, 720);
-    //bar(766, 690, 771, 720);
-    //bar(1023, 690, 1028, 720);
 
     bar(270, 60, 273, 90);  //butoanele de deasupra fisierelor
     bar(355, 60, 358, 90);
