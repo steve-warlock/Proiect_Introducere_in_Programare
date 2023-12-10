@@ -1,5 +1,41 @@
 #include <graphics.h>
 #include <winbgim.h>
+#include <windows.h>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include <fstream>
+
+#define Nr_of_Buttons 5
+
+using namespace std;
+
+void DrawButton(int x1, int y1, int x2, int y2, char* buttonText) {
+    bar(x1, y1, x2, y2);
+ //setfillstyle(SOLID_FILL, COLOR(151,159,165));
+    setcolor(BLACK);
+    int textWidth = textwidth(buttonText);
+    int textHeight = textheight(buttonText);
+
+
+    // Calculate the position to center the text within the button
+    int textX = x1 + (x2 - x1 - textWidth) / 2 - 129;
+    int textY = y1 + (y2 - y1 - textHeight) / 2 + textheight(buttonText) / 2 - 6;
+
+
+
+    outtextxy(textX, textY, buttonText);
+}
+
+
+struct Files{
+
+    string name;
+    string extension;
+    double size_file;
+    string modified_date;
+};
+
 int main() {
     initwindow(1280,720);
     setbkcolor(WHITE);
@@ -22,10 +58,17 @@ int main() {
     bar(0, 630, 1280, 632);
     bar(0,660,1280,662);
 
-    bar(252, 690, 257, 720);//butoanele de jos (comenzile rapide)
-    bar(509, 690, 514, 720);
-    bar(766, 690, 771, 720);
-    bar(1023, 690, 1028, 720);
+
+     DrawButton(252, 690, 257, 720, (char*) "F2 Rename");
+     DrawButton(509, 690, 514, 720, (char*)"F3 Mkdir");
+     DrawButton(766, 690, 771, 720, (char*)"F4 Copy");
+     DrawButton(1023, 690, 1028, 720, (char*)"F5 Delete");
+     //DrawButton(1035, 690, 1280, 720, (char*) "F6 Move");
+
+    //butoanele de jos (comenzile rapide)
+   // bar(509, 690, 514, 720);
+    //bar(766, 690, 771, 720);
+    //bar(1023, 690, 1028, 720);
 
     bar(270, 60, 273, 90);  //butoanele de deasupra fisierelor
     bar(355, 60, 358, 90);
@@ -40,7 +83,6 @@ int main() {
     bar(911, 90, 912, 630);
     bar(996, 90, 997, 630);
     bar(1081, 90, 1082, 630);
-
 
     getch();
     closegraph();
