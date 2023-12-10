@@ -1,26 +1,38 @@
-#include <iostream>
 #include <graphics.h>
 #include <winbgim.h>
-using namespace std;
-int main()
-{
-//    int gd=DETECT, gm;
-//    initgraph(&gd,&gm,"");
-    int x=getmaxwidth();
-    int y=getmaxheight();
-    initwindow(2*x/3,2*y/3);
+int main() {
+    initwindow(1280,720);
     setbkcolor(WHITE);
     cleardevice();
-    x=getmaxx();
-    y=getmaxy();
-    cout<<x<<' '<<y;
-    setcolor(BLACK);
-    line(0,x/70,x,x/70);
-    line(0,x/70*3,x,x/70*3);
-    line(0,x/70*4,x,x/70*4);
-    line(0,x/70*5,x,x/70*5);
-    line(y/2,x/70*5,y/2,x);
+    setfillstyle(SOLID_FILL, COLOR(47,61,76));
+    bar(0, 0, 1280, 60);
+    bar(0,660,1280,720);
+    setfillstyle(SOLID_FILL, COLOR(151,159,165));
+    bar(0,60,615,660);
+    bar(640,60,1255,660);
+    setfillstyle(SOLID_FILL, BLACK);
+    bar(0, 30, 1280, 32);
+    bar(0, 60, 1280, 64);
+    bar(0, 690, 1280, 692);
+    bar(0, 720, 1280, 724);
+    bar(640, 0, 642, 690);
+    bar(615, 60, 617, 720);
+    bar(1255, 60, 1257, 720);
+    bar(0, 90, 1280, 94);
+    bar(0, 630, 1280, 632);
+    bar(252, 690, 257, 720);
+    bar(509, 690, 514, 720);
+    bar(766, 690, 771, 720);
+    bar(1023, 690, 1028, 720);
+    bar(270, 60, 274, 90);
+    bar(355, 60, 359, 90);
+    bar(440, 60, 444, 90);
+    bar(910, 60, 914, 90);
+    bar(995, 60, 999, 90);
+    bar(1080, 60, 1084, 90);
+    bar(0,660,1280,662);
     getch();
     closegraph();
+
     return 0;
 }
