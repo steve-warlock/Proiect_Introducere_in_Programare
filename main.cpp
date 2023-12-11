@@ -9,7 +9,6 @@
 using namespace std;
 
 
-enum direction{UP, DOWN};
 string left_panel_path = "C:\\";
 string right_panel_path = "D:\\";
 
@@ -25,11 +24,16 @@ struct Files{
 };
 
 
-/*void draw_arrow(int x1, int y1, int x2, int y2, enum sgn)
+void DrawArrow(int x1, int y1, int x2, int y2, char* buttonText)
 {
-
+   settextstyle(4,0,15);
+   setcolor(COLOR(47,61,76));
+   int textX = (x1 + x2) / 2 - textwidth(buttonText) / 2;
+   int textY = (y1 + y2) / 2 - textheight(buttonText) / 2;
+   settextstyle(4,0,12);
+   setbkcolor(COLOR(255,255,255));
+   outtextxy(textX, textY, buttonText);
 }
-*/
 
 void DrawShortcutButton(int x1, int y1, int x2, int y2, char* buttonText)
 {
@@ -99,7 +103,9 @@ void draw_first_panel()
     DrawButton(0, 60, 279, 90, (char*) "Name");
     DrawButton(280, 60, 335, 90, (char*) "Ext");
     DrawButton(355, 60, 440, 90, (char*) "Size");
-    DrawButton(440, 60, 635, 90, (char*) "Date");
+    DrawButton(440, 60, 615, 90, (char*) "Date");
+    DrawArrow(624, 79, 640, 90, (char*) "^");
+    DrawArrow(626, 647, 640, 660, (char*) "v");
 
      //liniile ce delimiteaza informatiile
     bar(270,90,273,630);
@@ -134,7 +140,8 @@ void draw_second_panel()
 
      //draw_arrow(x1,y1,x2,y2, UP);
     //draw_arrow(x1,y1,x2,y2, DOWN);
-
+    DrawArrow(1264, 79, 1280, 90, (char*) "^");
+    DrawArrow(1266, 647, 1280, 660, (char*) "v");
 }
 
 
