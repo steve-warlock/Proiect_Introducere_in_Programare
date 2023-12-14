@@ -22,7 +22,7 @@ struct node{
     double size_file;
     string modified_date;
     bool is_directory;
-    node* next;
+    node*next, *prev;
 };
 
 
@@ -253,6 +253,7 @@ node* getFileList(const char* path) {
             current = newNode;
         } else {
             current->next = newNode;
+            newNode->prev = current; // Update previous pointer
             current = current->next;
         }
     } while (FindNextFile(hFind, &fileData) != 0);
