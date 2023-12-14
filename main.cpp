@@ -10,7 +10,7 @@
 #define Nr_of_Buttons 5
 using namespace std;
 
-char left_panel_path[FILENAME_MAX] = "C:\\Users\\Steve Warlock\\";
+char left_panel_path[FILENAME_MAX] = "C:\\";
 char right_panel_path[FILENAME_MAX] = "D:\\";
 
 
@@ -199,9 +199,127 @@ void draw_second_panel()
     DrawArrow(1266, 647, 1280, 660, (char*) "v");
 }
 
+node* getFileList(const char* path) {
+    if (!pathExists(path)) {
+        cout << "Path is not valid or doesn't exist\n";
+        return nullptr;
+    }
 
+    WIN32_FIND_DATA fileData;
+    HANDLE hFind = FindFirstFile((string(path) + "\\*").c_str(), &fileData);
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        cout << "Error finding the first file\n";
+        return nullptr;
+    }
+
+    node* head = nullptr;
+    node* current = nullptr;
+
+    do {
+        node* newNode = new node;
+        newNode->name = fileData.cFileName;
+
+        // Extract extension
+        size_t pos = newNode->name.find_last_of('.');
+        if (pos != string::npos) {
+            newNode->extension = newNode->name.substr(pos + 1);
+            newNode->name = newNode->name.substr(0, pos);
+        } else {
+            newNode->extension = "<DIR>";
+        }
+
+        // Check if it's a directory
+        if (fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            newNode->size_file = -1; // Placeholder for directories
+        } else {
+            // Calculate size in megabytes for files
+            newNode->size_file = static_cast<double>(fileData.nFileSizeLow) / (1024 * 1024);
+        }
+
+        // Convert FILETIME to local time string for modified date
+        FILETIME lastWriteTime = fileData.ftLastWriteTime;
+        SYSTEMTIME sysTime;
+        FileTimeToSystemTime(&lastWriteTime, &sysTime);
+        char modifiedDate[128] = {'\0'};
+        GetDateFormatA(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &sysTime, nullptr, modifiedDate, 128);
+        newNode->modified_date = modifiedDate;
+
+        newNode->is_directory = (fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        newNode->next = nullptr;
+
+        if (head == nullptr) {
+            head = newNode;
+            current = newNode;
+        } else {
+            current->next = newNode;
+            current = current->next;
+        }
+    } while (FindNextFile(hFind, &fileData) != 0);
+
+    FindClose(hFind);
+    return head;
+}
+
+
+void printFileDetails(node* fileList, int startX, int startY) {
+    int y = startY;
+    settextstyle(4, 0, 12); // Set text style
+    setcolor(COLOR(151, 159, 165)); // Set text color
+
+    while (fileList != nullptr) {
+        char fileInfo[512] = {'\0'};
+        sprintf(fileInfo, "%s.%s %s %.2f MB %s", fileList->name.c_str(), fileList->extension.c_str(),
+                fileList->modified_date.c_str(), fileList->size_file, fileList->is_directory ? "<DIR>" : "");
+
+        outtextxy(startX, y, fileInfo); // Output file details
+
+        y += textheight(fileInfo) + 15; // Increment Y position for the next file details
+        fileList = fileList->next;
+    }
+}
+
+void Free_Memory(node* filelist)
+{
+
+    while(filelist)
+    {
+        node* temp = filelist;
+        filelist = filelist -> next;
+        delete temp;
+    }
+}
+
+void handleEvents() {
+    while (true) {
+        if (GetAsyncKeyState(VK_F2) & 0x8000) {
+            std::cout << "F2 key pressed: Rename\n";
+            // Perform actions for F2 key (Rename)
+        }
+        if (GetAsyncKeyState(VK_F3) & 0x8000) {
+            std::cout << "F3 key pressed: Mkdir\n";
+            // Perform actions for F3 key (Mkdir)
+        }
+        if (GetAsyncKeyState(VK_F4) & 0x8000) {
+            std::cout << "F4 key pressed: Copy\n";
+            // Perform actions for F4 key (Copy)
+        }
+        if (GetAsyncKeyState(VK_F5) & 0x8000) {
+            std::cout << "F5 key pressed: Delete\n";
+            // Perform actions for F5 key (Delete)
+        }
+        if (GetAsyncKeyState(VK_F6) & 0x8000) {
+            std::cout << "F6 key pressed: Move\n";
+            // Perform actions for F6 key (Move)
+        }
+
+        Sleep(100); // Add a small delay to avoid CPU load
+    }
+}
 
 int main() {
+
+
     initwindow(1280,720, "Total Commander");
     setbkcolor(WHITE);
     cleardevice();
@@ -230,8 +348,28 @@ int main() {
     draw_second_panel();
     shortcut_buttons();
 
+
+      node* leftPanelFiles = getFileList(left_panel_path);
+      node* rightPanelFiles = getFileList(right_panel_path);
+
+    // Check if file lists are retrieved successfully
+    if (leftPanelFiles != nullptr) {
+        // Display file details in the WinBGIm window
+        int startY = 100; // Set starting Y position for file details display
+        printFileDetails(leftPanelFiles, 10, startY); // Modify X position as needed
+        //printFileDetails(rightPanelFiles, 650, startY); // Modify X position as needed
+    } else {
+        // Handle accordingly if file lists are not retrieved
+        std::cerr << "Error retrieving file lists.\n";
+    }
+
+    handleEvents();
+
+
     getch();
     closegraph();
+
+
 
     return 0;
 }
