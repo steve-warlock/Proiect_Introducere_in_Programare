@@ -22,9 +22,13 @@ struct node{
     double size_file;
     string modified_date;
     bool is_directory;
-    node*next, *prev;
+    node* next;
+    node* prev;
 };
 
+bool which_panel = true; // true - stanga, false - dreapta
+node* currentSelectedLeft = nullptr;
+node* currentSelectedRight = nullptr;
 
 bool pathExists(const char* path) {
     DWORD attributes = GetFileAttributes(path);
@@ -75,7 +79,7 @@ void DrawArrow(int x1, int y1, int x2, int y2, char* buttonText)
    int textX = (x1 + x2) / 2 - textwidth(buttonText) / 2;
    int textY = (y1 + y2) / 2 - textheight(buttonText) / 2;
    settextstyle(4,0,12);
-   setbkcolor(COLOR(255,255,255));
+   setbkcolor(COLOR(200,200,200));
    outtextxy(textX, textY, buttonText);
 }
 
@@ -175,10 +179,10 @@ void draw_first_panel()
 void draw_second_panel()
 {
     //title bar de sus (display the memory)
-    //free_space(right_panel_path, 640, 0, 1280, 30);
+    free_space(right_panel_path, 640, 0, 1280, 30);
 
     //display the path
-   // display_path(x1,y1,x2,y2, right_panel_path);
+    display_path(675,30, 1280, 60, right_panel_path);
 
     // butoanele de deasupra fisierelor panel 2
      bar(910, 60, 913, 90);
@@ -197,6 +201,31 @@ void draw_second_panel()
     bar(1080, 90, 1083, 630);
     DrawArrow(1264, 79, 1280, 90, (char*) "^");
     DrawArrow(1266, 647, 1280, 660, (char*) "v");
+}
+
+void draw_zones()
+{
+    setbkcolor(WHITE);
+    cleardevice();
+    setfillstyle(SOLID_FILL, COLOR(47,61,76));
+    bar(0, 0, 1280, 60);
+    bar(0,660,1280,720);
+    setfillstyle(SOLID_FILL, COLOR(151,159,165));
+    bar(0,60,615,660);
+    bar(640,60,1255,660);
+    setfillstyle(SOLID_FILL, BLACK);
+    bar(0, 30, 1280, 32);
+    bar(0, 60, 1280, 64);
+    bar(0, 690, 1280, 692);
+    bar(0, 720, 1280, 724);
+    bar(640, 0, 642, 690);
+    bar(615, 60, 617, 690);
+    bar(1255, 60, 1257, 690);
+    bar(0, 90, 1280, 94);
+    bar(0, 630, 1280, 632);
+    bar(0,660,1280,662);
+
+    shortcut_buttons();
 }
 
 node* getFileList(const char* path) {
@@ -263,21 +292,131 @@ node* getFileList(const char* path) {
 }
 
 
-void printFileDetails(node* fileList, int startX, int startY) {
+void printFileDetailsLeftPanel(node* fileList, int startX, int startY) {
     int y = startY;
-    settextstyle(4, 0, 12); // Set text style
-    setcolor(COLOR(151, 159, 165)); // Set text color
+    settextstyle(3, 0, 11); // Set text style
+    setcolor(COLOR(4,4,4)); // Set text color
+    setbkcolor(COLOR(151,159,165)); // Set bk color
 
-    while (fileList != nullptr) {
-        char fileInfo[512] = {'\0'};
-        sprintf(fileInfo, "%s.%s %s %.2f MB %s", fileList->name.c_str(), fileList->extension.c_str(),
-                fileList->modified_date.c_str(), fileList->size_file, fileList->is_directory ? "<DIR>" : "");
-
-        outtextxy(startX, y, fileInfo); // Output file details
-
-        y += textheight(fileInfo) + 15; // Increment Y position for the next file details
-        fileList = fileList->next;
+    while (fileList != nullptr && startY<=600)
+    {
+	if(fileList->name.c_str()) //nume
+    {
+        char a[256];
+        strcpy(a,fileList->name.c_str());
+        if(strlen(a)>40)
+        {
+            a[40]=NULL;
+            strcat(a,"...");
+        }
+		//int textX = (10 + 277) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(5, textY, a); // Output file details
     }
+    if(fileList->extension.c_str()) //extensie
+    {
+        char a[256];
+        strcpy(a,fileList->extension.c_str());
+		int textX = (270 + 355) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        if(!strcmp(a,"<DIR>")==0)
+            outtextxy(textX, textY, a); // Output file details
+    }
+    if(fileList->is_directory) //director
+    {
+        char a[256];
+        strcpy(a,"<DIR>");
+		int textX = (355 + 440) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(textX, textY, a); // Output file details
+    }
+    else
+    {
+            char a[256];
+            // Conversia double la char array
+            snprintf(a, sizeof(a), "%.2f", fileList->size_file);
+            strcat(a," MB");
+            int textX = (355 + 440) / 2 - textwidth(a) / 2;
+            int textY = (startY + startY + 30) / 2 - textheight(a) / 2;
+            outtextxy(textX, textY, a); // Output file details
+    }
+    if(fileList->modified_date.c_str()) //data
+    {
+        char a[256];
+        strcpy(a,fileList->modified_date.c_str());
+		int textX = (440 + 635) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(textX, textY, a); // Output file details
+    }
+    startY +=  25; // Increment Y position for the next file details
+    fileList = fileList->next;
+
+    }
+
+}
+
+void printFileDetailsRightPanel(node* fileList, int startX, int startY) {
+    int y = startY;
+    settextstyle(3, 0, 11); // Set text style
+    setcolor(COLOR(4,4,4)); // Set text color
+    setbkcolor(COLOR(151,159,165)); // Set bk color
+
+    while (fileList != nullptr && startY<=600)
+    {
+
+	if(fileList->name.c_str()) //nume
+    {
+        char a[256];
+        strcpy(a,fileList->name.c_str());
+        if(strlen(a)>40)
+        {
+            a[40]=NULL;
+            strcat(a,"...");
+        }
+		//int textX = (10 + 277) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(645, textY, a); // Output file details
+    }
+    if(fileList->extension.c_str()) //extensie
+    {
+        char a[256];
+        strcpy(a,fileList->extension.c_str());
+		int textX = (910 + 995) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        if(!strcmp(a,"<DIR>")==0)
+            outtextxy(textX, textY, a); // Output file details
+    }
+    if(fileList->is_directory) //director
+    {
+        char a[256];
+        strcpy(a,"<DIR>");
+		int textX = (995 + 1080) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(textX, textY, a); // Output file details
+    }
+    else
+    {
+            char a[256];
+            // Conversia double la char array
+            snprintf(a, sizeof(a), "%.2f", fileList->size_file);
+            strcat(a," MB");
+            int textX = (995 + 1080) / 2 - textwidth(a) / 2;
+            int textY = (startY + startY + 30) / 2 - textheight(a) / 2;
+            outtextxy(textX, textY, a); // Output file details
+    }
+    if(fileList->modified_date.c_str()) //data
+    {
+        char a[256];
+        strcpy(a,fileList->modified_date.c_str());
+		int textX = (1080 + 1255) / 2 - textwidth(a) / 2;
+        int textY = (startY + startY+30) / 2 - textheight(a) / 2;
+        outtextxy(textX, textY, a); // Output file details
+    }
+    startY +=  25; // Increment Y position for the next file details
+    fileList = fileList->next;
+
+    }
+
 }
 
 void Free_Memory(node* filelist)
@@ -291,86 +430,147 @@ void Free_Memory(node* filelist)
     }
 }
 
-void handleEvents() {
-    while (true) {
-        if (GetAsyncKeyState(VK_F2) & 0x8000) {
-            std::cout << "F2 key pressed: Rename\n";
-            // Perform actions for F2 key (Rename)
-        }
-        if (GetAsyncKeyState(VK_F3) & 0x8000) {
-            std::cout << "F3 key pressed: Mkdir\n";
-            // Perform actions for F3 key (Mkdir)
-        }
-        if (GetAsyncKeyState(VK_F4) & 0x8000) {
-            std::cout << "F4 key pressed: Copy\n";
-            // Perform actions for F4 key (Copy)
-        }
-        if (GetAsyncKeyState(VK_F5) & 0x8000) {
-            std::cout << "F5 key pressed: Delete\n";
-            // Perform actions for F5 key (Delete)
-        }
-        if (GetAsyncKeyState(VK_F6) & 0x8000) {
-            std::cout << "F6 key pressed: Move\n";
-            // Perform actions for F6 key (Move)
-        }
-
-        Sleep(100); // Add a small delay to avoid CPU load
-    }
+void highlightItem(node* fileList, int startX, int startY) {
+    setcolor(COLOR(0, 0, 255)); // Setează culoarea la albastru transparent
+    setfillstyle(SOLID_FILL, COLOR(0, 0, 255)); // Setează umplerea la albastru transparent
+    int y = startY + 5; // Offset pentru a se potrivi cu textul
+    rectangle(startX, y, startX + textwidth((char*)fileList->name.c_str()) + 8, y + textheight((char*)fileList->name.c_str()) + 2); // Desenează dreptunghiul în jurul numelui primului element
 }
 
-int main() {
+void clearSelectionHighlight(node* fileList, int startX, int startY) {
+    setcolor(COLOR(151, 159, 165)); // Setează culoarea la culoarea de fundal a ferestrei
+    setfillstyle(SOLID_FILL, COLOR(151, 159, 165)); // Setează umplerea la culoarea de fundal a ferestrei
+    int y = startY + 5; // Offset pentru a se potrivi cu textul
+    rectangle(startX, y, startX + textwidth((char*)fileList->name.c_str()) + 8, y + textheight((char*)fileList->name.c_str()) + 2); // Desenează dreptunghiul în jurul numelui primului element
+}
+
+int main()
+{
 
 
     initwindow(1280,720, "Total Commander");
-    setbkcolor(WHITE);
-    cleardevice();
-    setfillstyle(SOLID_FILL, COLOR(47,61,76));
-    bar(0, 0, 1280, 60);
-    bar(0,660,1280,720);
-    setfillstyle(SOLID_FILL, COLOR(151,159,165));
-    bar(0,60,615,660);
-    bar(640,60,1255,660);
-    setfillstyle(SOLID_FILL, BLACK);
-    bar(0, 30, 1280, 32);
-    bar(0, 60, 1280, 64);
-    bar(0, 690, 1280, 692);
-    bar(0, 720, 1280, 724);
-    bar(640, 0, 642, 690);
-    bar(615, 60, 617, 690);
-    bar(1255, 60, 1257, 690);
-    bar(0, 90, 1280, 94);
-    bar(0, 630, 1280, 632);
-    bar(0,660,1280,662);
-
-
-
-
+    draw_zones();
     draw_first_panel();
     draw_second_panel();
-    shortcut_buttons();
 
 
-      node* leftPanelFiles = getFileList(left_panel_path);
-      node* rightPanelFiles = getFileList(right_panel_path);
+    node* leftPanelFiles = getFileList(left_panel_path);
+    node* rightPanelFiles = getFileList(right_panel_path);
+    currentSelectedLeft = leftPanelFiles;
+    currentSelectedRight = rightPanelFiles;
+    int startY = 93;
+    int modifiable_left_Y = startY;
+    int modifiable_right_Y = startY;
 
-    // Check if file lists are retrieved successfully
-    if (leftPanelFiles != nullptr) {
-        // Display file details in the WinBGIm window
-        int startY = 100; // Set starting Y position for file details display
-        printFileDetails(leftPanelFiles, 10, startY); // Modify X position as needed
-        //printFileDetails(rightPanelFiles, 650, startY); // Modify X position as needed
-    } else {
-        // Handle accordingly if file lists are not retrieved
-        std::cerr << "Error retrieving file lists.\n";
+        if (leftPanelFiles != nullptr) {
+            // Display file details in the WinBGIm window
+            printFileDetailsLeftPanel(leftPanelFiles, 0, startY); // Modify X position as needed
+            highlightItem(leftPanelFiles, 5, startY);
+        } else {
+            // Handle accordingly if file lists are not retrieved
+            std::cerr << "Error retrieving file lists.\n";
+        }
+       /* if(rightPanelFiles != nullptr)
+        {
+            int startY = 93; // Set starting Y position for file details display
+            printFileDetails(rightPanelFiles, 650, startY, MAX_DISPLAYED_ITEMS); // Modify X position as needed
+        }
+        else
+        {
+            std::cerr << "Error retrieving file lists.\n";
+        }
+    */
+    while (true) {
+
+    if (GetAsyncKeyState(VK_UP) & 0x8000) {
+        if (which_panel && leftPanelFiles && currentSelectedLeft -> prev) {
+            if(modifiable_left_Y - 25 >= 93)
+            {
+            clearSelectionHighlight(currentSelectedLeft, 5, modifiable_left_Y); // Șterge chenarul anterior
+            modifiable_left_Y -= 25;
+            currentSelectedLeft = currentSelectedLeft -> prev;
+            cleardevice();
+            draw_zones();
+            draw_first_panel();
+            draw_second_panel();
+            shortcut_buttons();
+            printFileDetailsLeftPanel(leftPanelFiles, 0, startY);
+            highlightItem(currentSelectedLeft, 5, modifiable_left_Y);
+            }
+            else
+                continue;
+        }
+        else
+            if(!which_panel && rightPanelFiles && currentSelectedRight -> prev)
+        {
+            if(modifiable_right_Y - 25 >= 93)
+            {
+            clearSelectionHighlight(currentSelectedRight, 655, modifiable_right_Y); // Șterge chenarul anterior
+            modifiable_right_Y -= 25;
+            currentSelectedRight = currentSelectedLeft -> prev;
+            cleardevice();
+            draw_zones();
+            draw_first_panel();
+            draw_second_panel();
+            shortcut_buttons();
+            printFileDetailsRightPanel(rightPanelFiles, 0, startY);
+            highlightItem(currentSelectedRight, 655, modifiable_right_Y);
+            }
+            else
+                continue;
+        }
     }
 
-    handleEvents();
+    if (GetAsyncKeyState(VK_DOWN) & 0x8000) {
+        if (which_panel && leftPanelFiles && currentSelectedLeft->next) {
 
+            if(modifiable_left_Y + 25 <= 630)
+            {
+            clearSelectionHighlight(currentSelectedLeft, 5, modifiable_left_Y); // Șterge chenarul anterior
+            modifiable_left_Y += 25;
+            currentSelectedLeft = currentSelectedLeft->next;
+            cleardevice();
+            draw_zones();
+            draw_first_panel();
+            draw_second_panel();
+            shortcut_buttons();
+            printFileDetailsLeftPanel(leftPanelFiles, 0, startY);
+            highlightItem(currentSelectedLeft, 5, modifiable_left_Y);
+            }
+            else
+                continue;
+        }
+        else
+           if(!which_panel && rightPanelFiles && currentSelectedRight -> prev)
+        {
+            if(modifiable_right_Y + 25 <= 630)
+            {
+            clearSelectionHighlight(currentSelectedRight, 655, modifiable_right_Y); // Șterge chenarul anterior
+            modifiable_right_Y += 25;
+            currentSelectedRight = currentSelectedLeft -> prev;
+            cleardevice();
+            draw_zones();
+            draw_first_panel();
+            draw_second_panel();
+            shortcut_buttons();
+            printFileDetailsRightPanel(rightPanelFiles, 0, startY);
+            highlightItem(currentSelectedRight, 655, modifiable_right_Y);
+            }
+            else
+                continue;
+        }
+    }
+    if(GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+    {
+        closegraph();
+        Free_Memory(leftPanelFiles);
+        Free_Memory(rightPanelFiles);
+        exit(0);
+    }
 
-    getch();
-    closegraph();
+    // Restul logicii pentru tastele F2, F3, F4, F5, F6 și altele...
 
-
-
+    Sleep(100); // Adăugare mică întârziere pentru a evita încărcarea procesorului
+}
     return 0;
 }
