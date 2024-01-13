@@ -6,9 +6,17 @@
 #include <filesystem>
 #include <algorithm>
 #include <vector>
+#include <cctype>
 #include <string>
+#include <memory>
 #include <iostream>
+#include <cctype> // Pentru std::tolower
 #include <ShlObj.h>
+#include <sstream>
+#include <iomanip>
+#include <utility>
+#include <chrono>
+#include "Malware_Analysis.hpp"
 #include "winbgim.h"
 #include "graphics.h"
 #define Nr_of_Buttons 5
@@ -19,20 +27,10 @@ string right_panel_path = "C:\\";
 
 
 
-struct node
-{
-    string name;
-    string extension;
-    double size_file;
-    string modified_date;
-    bool is_directory;
-    node* next;
-    node* prev;
-};
-
 bool which_panel = true; // true - stanga, false - dreapta
-node* currentSelectedLeft = nullptr;
-node* currentSelectedRight = nullptr;
+node* currentSelectedLeft = new node;
+node* currentSelectedRight = new node;
+
 
 bool tabPressed = false; // Variabilă de comutare pentru a permite o singură schimbare între panouri
 
@@ -42,6 +40,13 @@ bool pathExists(const std::string& path)
     return (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY));
 }
 
+bool pathMusicExists(const std::string& path)
+{
+    DWORD fileAttributes = GetFileAttributes(path.c_str());
+
+    return (fileAttributes != INVALID_FILE_ATTRIBUTES &&
+        !(fileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+}
 
 void display_path(int x1, int y1, int x2, int y2, std::string& path)
 {
@@ -58,35 +63,22 @@ void display_path(int x1, int y1, int x2, int y2, std::string& path)
 
     size_t lastSlashPos = path.find_last_of("\\");
 
-    if (lastSlashPos != std::string::npos)
-    {
-        std::string lastFolder = path.substr(lastSlashPos + 1);
-
-        int textWidth = textwidth((char*)lastFolder.c_str());
-
-        if (textWidth > (x2 - x1 - 4))
-        {
-            int visibleLength = x2 - x1 - 4; // To leave space for ".."
-
-            if (visibleLength > 0)
-            {
-                std::string truncatedPath = ".." + path.substr(path.length() - visibleLength + 2);
-                outtextxy(x1 + 2, y1 + 7, (char*)truncatedPath.c_str());
-                return;
-            }
-        }
-    }
 
     int ok = 0;
     string mod_path = path;
-    while (textwidth((char*)mod_path.c_str()) > 610)
+
+    while (textwidth((char*)mod_path.c_str()) > 595)
     {
-        mod_path.pop_back();
+        mod_path.erase(0, 1); // Elimină primul caracter din șir
         ok = 1;
     }
-    if (ok)
-        mod_path += "...";
 
+    if (ok && mod_path.find('\\') != std::string::npos)
+    {
+        while (mod_path[0] != '\\')
+            mod_path.erase(0, 1);
+        mod_path.insert(0, "...");
+    }
 
     outtextxy(x1 + 2, y1 + 7, (char*)mod_path.c_str());
 }
@@ -97,7 +89,7 @@ void display_path(int x1, int y1, int x2, int y2, std::string& path)
 void DrawArrow(int x1, int y1, int x2, int y2, const std::string& buttonText)
 {
     settextstyle(4, 0, 15);
-    setcolor(COLOR(47, 61, 76));
+    setcolor(BLACK);
     int textX = (x1 + x2) / 2 - textwidth((char*)buttonText.c_str()) / 2;
     int textY = (y1 + y2) / 2 - textheight((char*)buttonText.c_str()) / 2;
     settextstyle(4, 0, 12);
@@ -160,7 +152,6 @@ void free_space(const std::string& current_path, int x1, int y1, int x2, int y2)
     }
 }
 
-
 void shortcut_buttons()
 {
     // comenzi rapide
@@ -190,7 +181,8 @@ void shortcut_buttons()
     line(626, 668, 635, 666);
     line(626, 669, 635, 667);
 
-    
+
+
     //lupe
     setfillstyle(SOLID_FILL, COLOR(220, 220, 220));
     fillellipse(629, 43, 7, 7);
@@ -298,25 +290,25 @@ node* getFileList(const std::string& path) {
     WIN32_FIND_DATA fileData;
     HANDLE hFind = FindFirstFile(wildcardPath.c_str(), &fileData);
 
-    if (hFind == INVALID_HANDLE_VALUE) {
+    /*if (hFind == INVALID_HANDLE_VALUE) {
         std::cout << "Error finding the first file\n";
         return nullptr;
-    }
+    }*/
 
     node* head = nullptr;
     node* current = nullptr;
     bool isFirstFile = false;
-
+    int counter = 1;
     do {
         std::string fileName = fileData.cFileName;
         if (fileName.empty())
         {
-                fileName = "no_name";   
+            fileName = "no_name";
         }
         if (fileName != ".") {
             node* newNode = new node;
             newNode->name = fileName;
-
+            newNode->id = counter++;
             // Verifică dacă este un director
             if (fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 newNode->size_file = -1; // Placeholder pentru directoare
@@ -380,12 +372,12 @@ void printFileDetailsLeftPanel(node* fileList, int startX, int startY)
         if (!fileName.empty())
         {
             int ok = 0;
-            while(textwidth((char*)fileName.c_str())>244)
+            while (textwidth((char*)fileName.c_str()) > 244)
             {
                 fileName.pop_back();
                 ok = 1;
             }
-            if(ok)
+            if (ok)
                 fileName += "...";
             int textY = (startY + startY + 30) / 2 - textheight((char*)fileName.c_str()) / 2;
             outtextxy(5, textY, (char*)fileName.c_str());
@@ -411,7 +403,7 @@ void printFileDetailsLeftPanel(node* fileList, int startX, int startY)
         else
         {
             // Dimensiunea fișierului
-            char fileSizeStr[256] = {'\0'};
+            char fileSizeStr[256] = { '\0' };
             snprintf(fileSizeStr, sizeof(fileSizeStr), "%.2f MB", fileList->size_file);
             int textX = (355 + 440) / 2 - textwidth(fileSizeStr) / 2;
             int textY = (startY + startY + 30) / 2 - textheight(fileSizeStr) / 2;
@@ -493,20 +485,19 @@ void printFileDetailsRightPanel(node* fileList, int startX, int startY)
 }
 
 
-void Free_Memory(node* filelist) {
-    while (filelist != nullptr) {
-        node* temp = filelist;
-        filelist = filelist->next;
-        delete temp;
+void Free_Memory(node*& filelist) {
+    node* current = filelist;
+    while (current != nullptr) {
+        node* next = current->next;
+        delete current;
+        current = next;
     }
+    filelist = nullptr;
 }
 
 
 // Funcție pentru accesarea folderului și actualizarea căii
 void AccessFolder(std::string& currentPath, node*& selectedNode, node*& which_panel_files) {
-    if (selectedNode == nullptr || !selectedNode->is_directory) {
-        return; // Do nothing if the node is not a directory or is null
-    }
 
     if (selectedNode->name != "..") {
         currentPath += selectedNode->name;
@@ -526,6 +517,12 @@ void AccessFolder(std::string& currentPath, node*& selectedNode, node*& which_pa
     }
 }
 
+void AccessFolder(string& currentPath, string& newPath, node*& which_panel_files)
+{
+    currentPath = newPath;
+    Free_Memory(which_panel_files);
+    which_panel_files = getFileList(currentPath);
+}
 
 // Funcție pentru deschiderea fișierului
 void OpenFile(const std::string& currentPath, node* selectedNode) {
@@ -533,6 +530,16 @@ void OpenFile(const std::string& currentPath, node* selectedNode) {
         std::string fullPath = currentPath + selectedNode->name + "." + selectedNode->extension;
         ShellExecuteA(nullptr, "open", fullPath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     }
+}
+
+void PlayMusic(const char* MusicPath)
+{
+    PlaySound(TEXT(MusicPath), NULL, SND_FILENAME | SND_ASYNC);
+}
+
+void StopMusic()
+{
+    PlaySound(NULL, NULL, SND_PURGE);
 }
 
 
@@ -564,11 +571,18 @@ void clearSelectionHighlight(node* fileList, int startX, int startY)
     rectangle(startX - 3, y - 2, startX + 264, y + textHeight + 3);
 }
 
+/*void HighlightItems(vector<pair<unique_ptr<node>, int>>& multiselect, int StartX)
+{
+
+}
+*/
+
+
 void switchPanel(node*& currentSelected, node* panelFiles, int& modifiableY, int startX) {
     clearSelectionHighlight(currentSelected, startX, modifiableY);
     currentSelected = panelFiles;
     modifiableY = 93;
-    highlightItem(currentSelected, 648 - startX, modifiableY);
+    highlightItem(currentSelected, 649 - startX, modifiableY);
 }
 
 int countFiles(const node* file_path) {
@@ -593,92 +607,319 @@ bool isPointInInterval(int x, int y, int startX, int startY, int endX, int endY)
 }
 
 
-bool compareNodesByName(const node* a, const node* b) {
-    return a->name < b->name;
+
+
+bool compareByName(const node* a, const node* b, bool sorted) {
+    std::string nameA = a->name;
+    std::string nameB = b->name;
+
+    // Convertim ambele șiruri la litere mici înainte de comparare
+    std::transform(nameA.begin(), nameA.end(), nameA.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(nameB.begin(), nameB.end(), nameB.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    return sorted ? (nameA < nameB) : (nameA > nameB);
 }
 
-bool compareNodesByExtension(const node* a, const node* b) {
-    return a->extension < b->extension;
+bool compareByExtension(const node* a, const node* b, bool sorted) {
+    std::string extA = a->extension;
+    std::string extB = b->extension;
+
+    // Convertim ambele extensii la litere mici înainte de comparare
+    std::transform(extA.begin(), extA.end(), extA.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(extB.begin(), extB.end(), extB.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    if (extA == extB) {
+        return compareByName(a, b, sorted);
+    }
+    return sorted ? (extA < extB) : (extA > extB);
 }
 
-bool compareNodesBySize(const node* a, const node* b) {
-    return a->size_file < b->size_file;
+bool compareBySize(const node* a, const node* b, bool sorted) {
+    if (a->size_file == b->size_file) {
+        return compareByName(a, b, sorted);
+    }
+    return sorted ? (a->size_file < b->size_file) : (a->size_file > b->size_file);
 }
 
-bool compareNodesByDate(const node* a, const node* b) {
-    return a->modified_date < b->modified_date;
+bool compareByDate(const node* a, const node* b, bool sorted) {
+    std::istringstream streamA(a->modified_date);
+    std::istringstream streamB(b->modified_date);
+
+    std::tm timeA = {}, timeB = {};
+
+    streamA >> std::get_time(&timeA, "%m/%d/%Y");
+    streamB >> std::get_time(&timeB, "%m/%d/%Y");
+
+    auto timePointA = std::chrono::system_clock::from_time_t(std::mktime(&timeA));
+    auto timePointB = std::chrono::system_clock::from_time_t(std::mktime(&timeB));
+
+    if (sorted) {
+        return timePointA < timePointB;
+    }
+    else {
+        return timePointA > timePointB;
+    }
 }
 
-void sort_by(const string& what_criteria, node*& panelnodes) {
+
+
+void sort_by(const std::string& what_criteria, node*& panelnodes, bool sorted) {
     if (panelnodes == nullptr || panelnodes->next == nullptr) {
-        // Handling cases of empty list or list with a single node (already sorted)
+        // Lista este goală sau are doar un element
         return;
     }
 
-    // Store pointers to nodes in a vector, excluding the first node ".."
-    vector<node*> nodes;
-    node* current = panelnodes->next; // Start from the second node
+    bool isBaseDir = panelnodes->name == "..";
+
+    std::vector<node*> nodeList;
+    node* current = panelnodes;
+
+    // Adăugăm primul nod (dacă este "..") în vectorul sortării
+    if (!isBaseDir) {
+        nodeList.push_back(current);
+        current = current->next;
+    }
+    else {
+        current = current->next; // Trecem peste nodul ".." la sortare
+    }
+
     while (current != nullptr) {
-        if (current->name != "..") {
-            nodes.push_back(current);
-        }
+        nodeList.push_back(current);
         current = current->next;
     }
 
-    // Sort the vector based on the specified criteria and in descending order
+    // Sortarea vectorului de noduri în funcție de criteriul specificat
     if (what_criteria == "Name") {
-        sort(nodes.begin(), nodes.end(), compareNodesByName);
+        std::sort(nodeList.begin(), nodeList.end(), [&sorted](const node* a, const node* b) {
+            return compareByName(a, b, sorted);
+            });
     }
     else if (what_criteria == "Ext") {
-        sort(nodes.begin(), nodes.end(), compareNodesByExtension);
+        std::sort(nodeList.begin(), nodeList.end(), [&sorted](const node* a, const node* b) {
+            return compareByExtension(a, b, sorted);
+            });
     }
     else if (what_criteria == "Size") {
-        sort(nodes.begin(), nodes.end(), compareNodesBySize);
+        std::sort(nodeList.begin(), nodeList.end(), [&sorted](const node* a, const node* b) {
+            return compareBySize(a, b, sorted);
+            });
     }
     else if (what_criteria == "Date") {
-        sort(nodes.begin(), nodes.end(), compareNodesByDate);
+        std::sort(nodeList.begin(), nodeList.end(), [&sorted](const node* a, const node* b) {
+            return compareByDate(a, b, sorted);
+            });
     }
 
-    // Reconstruct the linked list using the sorted nodes
-    panelnodes->next = nullptr; // Set panelnodes to ".."
-    if (!nodes.empty()) {
-        for (size_t i = 0; i < nodes.size() - 1; ++i) {
-            nodes[i]->next = nodes[i + 1];
-            nodes[i + 1]->prev = nodes[i];
-        }
-        nodes.front()->prev = panelnodes;
-        nodes.back()->next = nullptr;
-        panelnodes->next = nodes.front();
+
+    // Reconstruim lista înlănțuită în funcție de ordinea sortată a nodurilor din vector
+    if (isBaseDir)
+    {
+        panelnodes->next = nullptr;
+        panelnodes->next = nodeList.front();
+    }
+    else
+    {
+        panelnodes = nullptr;
+        panelnodes = nodeList.front(); // Noul început al listei
     }
 
-    // Clean up memory by deleting nodes
-    for (node* n : nodes) {
-        delete n;
+
+    for (size_t i = 0; i < nodeList.size() - 1; ++i) {
+        nodeList[i]->next = nodeList[i + 1];
+        nodeList[i + 1]->prev = nodeList[i];
     }
+
+    nodeList.back()->next = nullptr; // Închidem lista
 }
 
-void popup_error_window(const string& action)
+
+
+
+std::vector<HWND> openPopupWindows; // Vector pentru a ține evidența ferestrelor pop-up deschise
+
+HWND hwndEdit;
+HWND hwndActionText;
+HWND hwndOkButton;
+HWND hwndCancelButton;
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    switch (uMsg)
+    {
+    case WM_CREATE:
+    {
+        hwndActionText = CreateWindowA(
+            "STATIC",
+            "",
+            WS_CHILD | WS_VISIBLE | SS_CENTER,
+            20, 20, 260, 20, // Positioned above the text box
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL
+        );
 
+        hwndEdit = CreateWindowA(
+            "EDIT",
+            "",
+            WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_LEFT,
+            20, 50, 260, 30, // Positioned below the action text
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL
+        );
 
+        hwndOkButton = CreateWindowA(
+            "BUTTON",
+            "OK",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            50, 90, 80, 25, // Positioned below the text box
+            hwnd,
+            (HMENU)1,
+            GetModuleHandle(NULL),
+            NULL
+        );
 
+        hwndCancelButton = CreateWindowA(
+            "BUTTON",
+            "Cancel",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            170, 90, 80, 25, // Positioned below the text box
+            hwnd,
+            (HMENU)2,
+            GetModuleHandle(NULL),
+            NULL
+        );
 
+        SetWindowTextA(hwndActionText, "Enter Text:");
+        return 0;
+    }
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == 1)
+        {
+            char buffer[256] = { '\0' };
+            GetWindowTextA(hwndEdit, buffer, 256);
+            std::string* userInputPtr = reinterpret_cast<std::string*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+            *userInputPtr = buffer;
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        else if (LOWORD(wParam) == 2) // cancel
+        {
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        return 0;
+
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        openPopupWindows.erase(std::remove(openPopupWindows.begin(), openPopupWindows.end(), hwnd), openPopupWindows.end());
+        if (openPopupWindows.empty()) {
+            UnregisterClassA("PopupWindowClass", GetModuleHandle(NULL)); // Elimină înregistrarea clasei dacă nu mai sunt ferestre
+            PostQuitMessage(0); // Închide aplicația când nu mai sunt ferestre deschise
+        }
+        return 0;
+
+    case WM_SETTEXT:
+        SetWindowTextA(hwndActionText, reinterpret_cast<LPCSTR>(lParam));
+        return 0;
+
+    default:
+        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+BOOL open_popup_window(const std::string& action, std::string& user_input)
+{
+    HINSTANCE hInstance = GetModuleHandle(NULL);
+
+    WNDCLASSA wc = { 0 };
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = "PopupWindowClass";
+
+    if (!GetClassInfoA(hInstance, "PopupWindowClass", &wc))
+    {
+        if (!RegisterClassA(&wc))
+        {
+            MessageBoxA(NULL, "Window Registration Failed!", "Error", MB_ICONERROR | MB_OK);
+            return FALSE;
+        }
+    }
+
+    HWND hwnd = CreateWindowA(
+        "PopupWindowClass",
+        "", // Numele ferestrei
+        WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME & ~WS_MAXIMIZEBOX,
+        CW_USEDEFAULT, CW_USEDEFAULT, 300, 180,
+        NULL,
+        NULL,
+        hInstance,
+        NULL
+    );
+
+    if (hwnd == NULL) {
+        MessageBoxA(NULL, "Window Creation Failed!", "Error", MB_ICONERROR | MB_OK);
+        DWORD dwError = GetLastError();
+        // Folosiți dwError pentru a identifica codul specific al erorii
+        // MessageBoxA cu GetLastError() poate fi utilizat pentru a afișa codul de eroare
+        return FALSE;
+    }
+
+    SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&user_input));
+    SendMessageA(hwnd, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(action.c_str()));
+
+    ShowWindow(hwnd, SW_SHOW);
+    UpdateWindow(hwnd);
+
+    openPopupWindows.push_back(hwnd); // Adăugați fereastra curentă în vector
+
+    MSG msg;
+    while (GetMessageA(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+
+        if (msg.message == WM_QUIT)
+        {
+            break;
+        }
+    }
+
+    return TRUE;
+}
+
+BOOL popup_error_window(const std::string& action) {
+    LPCSTR message = action.c_str();
+
+    int msgboxID = MessageBox(
+        NULL,
+        message,
+        "Error",
+        MB_ICONERROR | MB_OK | MB_DEFBUTTON1 | MB_TOPMOST // Opțiuni pentru fereastra de dialog
+    );
+
+    return (msgboxID == IDOK); // Poți trata rezultatul dacă este necesar
 }
 
 
-
-void open_popup_window(const std::string& action, std::string& input) {
+void popup_verify_window(const std::string& action) {
+    LPCSTR message = action.c_str();
+    MessageBox(NULL, message, "Verification Window", MB_OK | MB_ICONINFORMATION);
 
 }
-
-
-
-
-
 
 
 //function keys implementation
-void Rename_File(node*& selectednode, const string& new_name, const string& given_path) {
+void Rename_File(node*& selectednode, const string& new_name, const string& given_path, bool& ok) {
     string old_file_name = given_path + selectednode->name + "." + selectednode->extension;
     string new_file_name = given_path + new_name + "." + selectednode->extension;
 
@@ -686,37 +927,43 @@ void Rename_File(node*& selectednode, const string& new_name, const string& give
         // Update the node's name if the file rename was successful
         selectednode->name = new_name;
         cout << "File renamed successfully!" << endl;
+        ok = true;
     }
     else {
-        cerr << "Error renaming file!" << endl;
+
     }
 }
 
 
-void Rename_Directory(node*& selectednode, const string& new_name, const string& given_path) {
-    string old_dir_name = given_path + selectednode->name;
-    string new_dir_name = given_path + new_name;
+void Rename_Directory(node*& selectednode, const std::string& new_name, const std::string& given_path, bool& ok) {
+    std::string old_dir_name = given_path + selectednode->name;
+    std::string new_dir_name = given_path + new_name;
 
-    if (MoveFileEx(old_dir_name.c_str(), new_dir_name.c_str(), MOVEFILE_REPLACE_EXISTING)) {
-        // Update the node's name if the directory rename was successful
-        selectednode->name = new_name;
-        cout << "Directory renamed successfully!" << endl;
-    }
-    else {
-        cerr << "Error renaming directory!" << endl;
-    }
-}
+    try {
+        if (std::filesystem::exists(old_dir_name) && !std::filesystem::exists(new_dir_name)) {
+            std::filesystem::rename(old_dir_name, new_dir_name);
 
-
-void create_directory(node*& panelnode, const std::string& name) {
-    if (CreateDirectory(name.c_str(), NULL)) {
-        if (ERROR_ALREADY_EXISTS == GetLastError()) {
-            std::cout << "Folder already exists!" << std::endl;
-            //displayErrorPopup("Folder already exists!");
+            selectednode->name = new_name;
+            ok = true;
+            std::cout << "Directory renamed successfully!" << std::endl;
         }
         else {
-            std::cout << "Folder created successfully!" << std::endl;
+            popup_error_window("Error renaming directory!");
         }
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
+}
+
+
+void create_directory(node*& panelnode, const std::string& name, const std::string& panel_path, bool& ok) {
+    if (CreateDirectory((panel_path + name).c_str(), NULL)) {
+        if (ERROR_ALREADY_EXISTS == GetLastError()) {
+            popup_error_window("Folder already exists!");
+            return;
+        }
+
 
         // Get the last write time of the directory
         WIN32_FIND_DATA fileData;
@@ -749,20 +996,25 @@ void create_directory(node*& panelnode, const std::string& name) {
             // Add newDirectory after the last node
             current->next = newDirectory;
             newDirectory->prev = current;
+            ok = true;
         }
         else {
             std::cout << "Failed to get last write time for the folder." << std::endl;
         }
     }
     else {
-        std::cout << "Failed to create folder. Error: " << GetLastError() << std::endl;
+        popup_error_window("Failed to create folder.");
     }
 }
 
-void copyFile(const std::string& path, node*& selectednode, const std::string& destinationFolder) {
+void copyFile(const std::string& path, node*& selectednode, const std::string& destinationFolder, bool& ok) {
     std::string sourceFileName = selectednode->name + "." + selectednode->extension;
     std::string sourceFilePath = path + sourceFileName;
-    std::string destinationPath = destinationFolder + "\\" + sourceFileName;
+    std::string destinationPath;
+    if (destinationFolder.back() == '\\')
+        destinationPath = destinationFolder + sourceFileName;
+    else
+        destinationPath = destinationFolder + '\\' + sourceFileName;
 
     try {
         std::filesystem::copy_options options = std::filesystem::copy_options::overwrite_existing;
@@ -770,42 +1022,85 @@ void copyFile(const std::string& path, node*& selectednode, const std::string& d
 
         std::filesystem::file_time_type sourceTime = std::filesystem::last_write_time(sourceFilePath);
         std::filesystem::last_write_time(destinationPath, sourceTime);
-
-        std::cout << "File copied successfully!" << std::endl;
+        ok = true;
     }
     catch (const std::filesystem::filesystem_error& e) {
-        std::cout << "Failed to copy file: " << e.what() << std::endl;
+        popup_error_window("Failed to copy file!");
     }
     catch (const std::exception& ex) {
         std::cout << "Error: " << ex.what() << std::endl;
     }
 }
 
+void copyFile(const std::string& path, unique_ptr<node>& copiednode, const std::string& copied_path)
+{
+    std::string where_to_copy_path = path + copiednode->name + "." + copiednode -> extension;
+    std::string old_path = copied_path + copiednode->name + "." + copiednode -> extension;
 
-void copyDirectory(const std::string& path, node*& selectednode, const std::string& destinationFolder) {
+
+
+    try {
+        std::filesystem::copy_options options = std::filesystem::copy_options::overwrite_existing;
+        std::filesystem::copy(old_path, where_to_copy_path, options);
+
+
+    }
+    catch (const std::filesystem::filesystem_error& e) {
+        popup_error_window("Failed to copy folder!");
+    }
+    catch (const std::exception& ex) {
+        std::cout << "Error: " << ex.what() << std::endl;
+    }
+
+}
+
+void copyDirectory(const std::string& path, node*& selectednode, const std::string& destinationFolder, bool& ok) {
     std::string sourceFolderPath = path + selectednode->name; // Assuming selectednode->name is the folder name
-    std::string destinationPath = destinationFolder + "\\" + selectednode->name; // Assuming selectednode->name is the folder name
+    std::string destinationPath;
+
+    if (destinationFolder.substr(destinationFolder.length() - 2) == "\\")
+        destinationPath = destinationFolder + selectednode->name;
+    else
+        destinationPath = destinationFolder + "\\" + selectednode->name;
 
     try {
         std::filesystem::copy_options options = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
         std::filesystem::copy(sourceFolderPath, destinationPath, options);
-
-        std::cout << "Folder copied successfully!" << std::endl;
+        ok = true;
     }
     catch (const std::filesystem::filesystem_error& e) {
-        std::cout << "Failed to copy folder: " << e.what() << std::endl;
+        popup_error_window("Failed to copy folder!");
     }
     catch (const std::exception& ex) {
         std::cout << "Error: " << ex.what() << std::endl;
     }
 }
 
+void copyDirectory(const std::string& path, unique_ptr<node>& copiednode, const std::string& copied_path)
+{
+    std::string where_to_copy_path = path + copiednode->name; 
+    std::string old_path = copied_path + copiednode->name;
 
-void deleteFile(const string& basePath, node* selectednode, node*& panelnodes) {
+   
+
+    try {
+        std::filesystem::copy_options options = std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing;
+        std::filesystem::copy(old_path, where_to_copy_path, options);
+       
+    }
+    catch (const std::filesystem::filesystem_error& e) {
+        popup_error_window("Failed to copy folder!");
+    }
+    catch (const std::exception& ex) {
+        std::cout << "Error: " << ex.what() << std::endl;
+    }
+
+}
+
+void deleteFile(const string& basePath, node* selectednode, node*& panelnodes, bool& ok) {
     std::string filePath = basePath + selectednode->name + "." + selectednode->extension;
     if (DeleteFileA(filePath.c_str()) != 0) {
-        std::cout << "File deleted successfully!" << std::endl;
-
+        ok = true;
         // Remove the selected node from the linked list
         if (selectednode == panelnodes) {
             panelnodes = panelnodes->next;
@@ -823,16 +1118,16 @@ void deleteFile(const string& basePath, node* selectednode, node*& panelnodes) {
         delete selectednode;
     }
     else {
-        std::cout << "Failed to delete file. Error code: " << GetLastError() << std::endl;
+        popup_error_window("Failed to delete file!");
     }
 }
 
 
-void deleteDirectory(const std::string& basePath, node* selectednode, node*& panelnodes) {
+void deleteDirectory(const std::string& basePath, node* selectednode, node*& panelnodes, bool& ok) {
     std::string directoryPath = basePath + selectednode->name;
     if (RemoveDirectoryA(directoryPath.c_str()) != 0) {
-        std::cout << "Directory deleted successfully!" << std::endl;
 
+        ok = true;
         // Remove the selected node from the linked list
         if (selectednode == panelnodes) {
             panelnodes = panelnodes->next;
@@ -850,96 +1145,70 @@ void deleteDirectory(const std::string& basePath, node* selectednode, node*& pan
         delete selectednode;
     }
     else {
-        std::cout << "Failed to delete directory. Error code: " << GetLastError() << std::endl;
+        popup_error_window("Failed to delete directory!");
     }
 }
 
-void moveFile(const std::string& basePath, node* selectednode, node*& panelnodes, const std::string& destinationFolder) {
-    copyFile(basePath, selectednode, destinationFolder); // Copy file to destination
-    deleteFile(basePath, selectednode, panelnodes); // Delete original file
+void moveFile(const std::string& basePath, node* selectednode, node*& panelnodes, const std::string& destinationFolder, bool& ok) {
+    copyFile(basePath, selectednode, destinationFolder, ok); // Copy file to destination
+    deleteFile(basePath, selectednode, panelnodes, ok); // Delete original file
+    ok = true;
 }
 
-void moveDirectory(const std::string& basePath, node* selectednode, node*& panelnodes, const std::string& destinationFolder) {
-    copyDirectory(basePath, selectednode, destinationFolder); // Copy directory to destination
-    deleteDirectory(basePath, selectednode, panelnodes); // Delete original directory
+void moveDirectory(const std::string& basePath, node* selectednode, node*& panelnodes, const std::string& destinationFolder, bool& ok) {
+    copyDirectory(basePath, selectednode, destinationFolder, ok); // Copy directory to destination
+    deleteDirectory(basePath, selectednode, panelnodes, ok); // Delete original directory
+    ok = true;
 }
 
 
 int main()
 {
-
-
     initwindow(1290, 730, "Total Commander");
-
+    analysis::Malware antivirus;
     node* leftPanelFiles = getFileList(left_panel_path);
     node* rightPanelFiles = getFileList(right_panel_path);
+    node* mod_leftPanelFiles = new node;
+    mod_leftPanelFiles = leftPanelFiles;
+    node* mod_rightPanelFiles = new node;
+    mod_rightPanelFiles = rightPanelFiles;
     currentSelectedLeft = leftPanelFiles;
     currentSelectedRight = rightPanelFiles;
-    int maxim1 = -1; // pentru a ramane constant nuamrul de fisiere in stanga
+
+    int maxim1 = -1; // pentru a ramane constant numarul de fisiere in stanga
     int maxim2 = -1; // pentru a ramane constant numarul de fisiere in dreapta
     int startY = 93;
+    bool muzica_ok = false;
     int modifiable_left_Y = startY;
     int modifiable_right_Y = startY;
-
-    float ysus1 = 97, ysus2 = 97;
-    float yjos1 = 0, yjos2 = 0;
-
+    bool modificat_stanga = false, modificat_dreapta = false;
+    string pathMusicFile = "";
+    double ysus1 = 98, ysus2 = 98;
+    double yjos1 = 0, yjos2 = 0;
+    int sort1 = 1, sort2 = 1;
     int page = 0;
+    unique_ptr<node>coppiednode = make_unique<node>();
+    vector<pair<unique_ptr<node>, int>>multiselect;
+    bool is_coppied = false;
+    string copied_path = "";
+    
+
+
     while (true)
     {
 
-        setactivepage(page);
+        setactivepage(1 - page);
         cleardevice();
 
         draw_zones();
 
-        if (leftPanelFiles != nullptr)
-        {
-            // Display file details in the WinBGIm window
-            printFileDetailsLeftPanel(leftPanelFiles, 0, startY); // Modify X position as needed
-        }
+        //daca este in redare o melodie
+        if (!muzica_ok)
+            DrawShortcutButton(0, 660, 615, 690, "No music is playing");
         else
         {
-            // Handle accordingly if file lists are not retrieved
-            std::cerr << "Error retrieving file lists.\n";
-        }
-        if (rightPanelFiles != nullptr)
-        {
-
-            printFileDetailsRightPanel(rightPanelFiles, 650, startY); // Modify X position as needed
-        }
-        else
-        {
-            std::cerr << "Error retrieving file lists.\n";
-        }
-
-        if (which_panel)
-            highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
-        else
-            highlightItem(currentSelectedRight, 644, modifiable_right_Y);
-
-
-
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
-        {
-            closegraph();
-            Free_Memory(currentSelectedLeft);
-            Free_Memory(currentSelectedRight);
-            Free_Memory(leftPanelFiles);
-            Free_Memory(rightPanelFiles);
-            exit(0);
-        }
-
-        if (GetAsyncKeyState(VK_TAB) & 0x8000) {
-            if (which_panel) {
-                which_panel = false;
-                switchPanel(currentSelectedLeft, leftPanelFiles, modifiable_left_Y, 4);
-            }
-            else {
-                which_panel = true;
-                switchPanel(currentSelectedRight, rightPanelFiles, modifiable_right_Y, 644);
-            }
-            Sleep(70);
+            DrawShortcutButton(0, 660, 615, 690, pathMusicFile);
+            DrawButton(615, 660, 1255, 690, "Click here to stop the music");
         }
 
         //scrollbar
@@ -955,46 +1224,80 @@ int main()
         maxim2 = max(maxim2, nrfis2);
         double latim2 = (int)540 / maxim2 + 0.5;
 
-        if (GetAsyncKeyState(VK_UP) & 0x8000)
+
+        if (modificat_stanga)
         {
-            if (which_panel && currentSelectedLeft->prev)
-            {
-                if (modifiable_left_Y - 25 > 90)
-                {
-                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
-                    modifiable_left_Y -= 25;
-                    currentSelectedLeft = currentSelectedLeft->prev;
-                    printFileDetailsLeftPanel(leftPanelFiles, 4, startY);
-                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
-                }
-                else
-                {
-                    if (maxim1 > 21 && ysus1 - latim1 > 92 && leftPanelFiles->prev && currentSelectedLeft->prev)
-                        ysus1 -= latim1, leftPanelFiles = leftPanelFiles->prev, currentSelectedLeft = currentSelectedLeft->prev;
-                }
-            }
-            else if (!which_panel && currentSelectedRight->prev)
-            {
-                if (modifiable_right_Y - 25 > 90)
-                {
-                    clearSelectionHighlight(currentSelectedRight, 644, modifiable_right_Y);
-                    modifiable_right_Y -= 25;
-                    currentSelectedRight = currentSelectedRight->prev;
-                    printFileDetailsRightPanel(rightPanelFiles, 644, startY);
-                    highlightItem(currentSelectedRight, 644, modifiable_right_Y);
-                }
-                else
-                {
-                    if (maxim2 > 21 && ysus2 - latim2 > 92 && rightPanelFiles->prev && currentSelectedRight->prev)
-                        ysus2 -= latim2, rightPanelFiles = rightPanelFiles->prev, currentSelectedRight = currentSelectedRight->prev;
-                }
-            }
-            Sleep(50);
+            ysus1 = 98, yjos1 = 0;
+            clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+            Free_Memory(leftPanelFiles);
+            mod_leftPanelFiles = nullptr;
+            currentSelectedLeft = nullptr;
+            modifiable_left_Y = startY;
+            //Free_Memory(mod_leftPanelFiles);
+            //Free_Memory(currentSelectedLeft);
+            leftPanelFiles = getFileList(left_panel_path);
+            mod_leftPanelFiles = leftPanelFiles;
+            currentSelectedLeft = leftPanelFiles;
+            modificat_stanga = false;
         }
+        if (modificat_dreapta)
+        {
+
+            ysus2 = 98, yjos2 = 0;
+            clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+            Free_Memory(rightPanelFiles);
+            // Free_Memory(mod_rightPanelFiles);
+             //Free_Memory(currentSelectedRight);
+            mod_rightPanelFiles = nullptr;
+            currentSelectedRight = nullptr;
+            modifiable_right_Y = startY;
+            rightPanelFiles = getFileList(right_panel_path);
+            mod_rightPanelFiles = rightPanelFiles;
+            currentSelectedRight = rightPanelFiles;
+            modificat_dreapta = false;
+        }
+
+
+        if (mod_leftPanelFiles != nullptr)
+        {
+            // Display file details in the WinBGIm window
+            printFileDetailsLeftPanel(mod_leftPanelFiles, 0, startY); // Modify X position as needed
+        }
+        else
+        {
+            // Handle accordingly if file lists are not retrieved
+            std::cerr << "Error retrieving file lists.\n";
+        }
+
+        if (mod_rightPanelFiles != nullptr)
+        {
+
+            printFileDetailsRightPanel(mod_rightPanelFiles, 650, startY); // Modify X position as needed
+        }
+        else
+        {
+            std::cerr << "Error retrieving file lists.\n";
+        }
+
+        if (which_panel)
+        {
+            multiselect.clear();
+            multiselect.push_back(make_pair(make_unique<node>(*currentSelectedLeft), modifiable_left_Y));
+            highlightItem(currentSelectedLeft, 4, modifiable_left_Y);  // Evidențiază elementul curent selectat
+        }
+        else
+        {
+        multiselect.clear();
+        multiselect.push_back(make_pair(make_unique<node>(*currentSelectedRight), modifiable_right_Y));
+        highlightItem(currentSelectedRight, 645, modifiable_right_Y); // Evidențiază elementul curent selectat
+        }
+            
+        
+
         //panelul selectat
         setcolor(COLOR(47, 61, 76));
         setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-        if(which_panel)
+        if (which_panel)
             fillellipse(294, 645, 6, 6);
         else
             fillellipse(954, 645, 6, 6);
@@ -1011,8 +1314,83 @@ int main()
         else
             fillellipse(982, 645, 6, 6);
 
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+        {
+            Free_Memory(leftPanelFiles);
+            Free_Memory(rightPanelFiles);
+            //Free_Memory(currentSelectedLeft);
+            //Free_Memory(currentSelectedRight);
+            //Free_Memory(mod_leftPanelFiles);
+            //Free_Memory(mod_rightPanelFiles);
+            multiselect.clear();
+            delete coppiednode.release();
+            copied_path.clear();
+            openPopupWindows.clear();
+            closegraph();
+            exit(0);
+        }
+
+        if (GetAsyncKeyState(VK_TAB) & 0x8000) {
+            
+            if (which_panel) {
+                which_panel = false;
+                switchPanel(currentSelectedLeft, leftPanelFiles, modifiable_left_Y, 4);
+              
+               // multiselect.push_back(make_pair(currentSelectedLeft, modifiable_left_Y));
+            }
+            else {
+                which_panel = true;
+                switchPanel(currentSelectedRight, rightPanelFiles, modifiable_right_Y, 645);
+                
+              //  multiselect.clear();
+                //multiselect.push_back(make_pair(currentSelectedRight, modifiable_right_Y));
+            }
+            Sleep(50);
+        }
+
+
+
+        if (GetAsyncKeyState(VK_UP) & 0x8000)
+        {
+           
+            if (which_panel && currentSelectedLeft->prev)
+            {
+                if (modifiable_left_Y - 25 > 90)
+                {
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    modifiable_left_Y -= 25;
+                    currentSelectedLeft = currentSelectedLeft->prev;
+                    printFileDetailsLeftPanel(mod_leftPanelFiles, 4, startY);
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                }
+                else
+                {
+                    if (maxim1 > 21 && ysus1 - latim1 > 92 && mod_leftPanelFiles->prev && currentSelectedLeft->prev)
+                        ysus1 -= latim1, mod_leftPanelFiles = mod_leftPanelFiles->prev, currentSelectedLeft = currentSelectedLeft->prev;
+                }
+            }
+            else if (!which_panel && currentSelectedRight->prev)
+            {
+                if (modifiable_right_Y - 25 > 90)
+                {
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    modifiable_right_Y -= 25;
+                    currentSelectedRight = currentSelectedRight->prev;
+                    printFileDetailsRightPanel(mod_rightPanelFiles, 645, startY);
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                }
+                else
+                {
+                    if (maxim2 > 21 && ysus2 - latim2 > 92 && mod_rightPanelFiles->prev && currentSelectedRight->prev)
+                        ysus2 -= latim2, mod_rightPanelFiles = mod_rightPanelFiles->prev, currentSelectedRight = currentSelectedRight->prev;
+                }
+            }
+            Sleep(50);
+        }
+
         if (GetAsyncKeyState(VK_DOWN) & 0x8000)
         {
+        
             if (which_panel && currentSelectedLeft->next)
             {
                 if (modifiable_left_Y + 25 < 610)
@@ -1020,33 +1398,119 @@ int main()
                     clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
                     modifiable_left_Y += 25;
                     currentSelectedLeft = currentSelectedLeft->next;
-                    printFileDetailsLeftPanel(leftPanelFiles, 4, startY);
+                    printFileDetailsLeftPanel(mod_leftPanelFiles, 4, startY);
                     highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
                 }
                 else
                 {
-                    if (maxim1 > 21 && ysus1 + 21 * latim1 < 630 && leftPanelFiles->next && currentSelectedLeft->next)
-                        ysus1 += latim1, leftPanelFiles = leftPanelFiles->next, currentSelectedLeft = currentSelectedLeft->next;
+                    if (maxim1 > 21 && ysus1 + 21 * latim1 < 630 && mod_leftPanelFiles->next && currentSelectedLeft->next)
+                        ysus1 += latim1, mod_leftPanelFiles = mod_leftPanelFiles->next, currentSelectedLeft = currentSelectedLeft->next;
                 }
             }
             else if (!which_panel && currentSelectedRight->next)
             {
                 if (modifiable_right_Y + 25 < 610)
                 {
-                    clearSelectionHighlight(currentSelectedRight, 644, modifiable_right_Y);
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
                     modifiable_right_Y += 25;
                     currentSelectedRight = currentSelectedRight->next;
-                    printFileDetailsRightPanel(rightPanelFiles, 644, startY);
-                    highlightItem(currentSelectedRight, 644, modifiable_right_Y);
+                    printFileDetailsRightPanel(mod_rightPanelFiles, 645, startY);
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
                 }
                 else
                 {
-                    if (maxim2 > 21 && ysus2 + 21 * latim2 < 630 && rightPanelFiles->next && currentSelectedRight->next)
-                        ysus2 += latim2, rightPanelFiles = rightPanelFiles->next, currentSelectedRight = currentSelectedRight->next;
+                    if (maxim2 > 21 && ysus2 + 21 * latim2 < 630 && mod_rightPanelFiles->next && currentSelectedRight->next)
+                        ysus2 += latim2, mod_rightPanelFiles = mod_rightPanelFiles->next, currentSelectedRight = currentSelectedRight->next;
                 }
             }
             Sleep(50);
         }
+
+        if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
+        {
+           
+            if (muzica_ok)
+            {
+                if (GetAsyncKeyState(0x50) & 0x8000) // P letter
+                {
+                    StopMusic();
+                    muzica_ok = false;
+                }
+                else // muzica oprita
+                {
+                    muzica_ok = true;
+                    PlayMusic(pathMusicFile.c_str());
+                }
+            }
+            Sleep(50);
+        }
+
+        //Ctrl + C
+        if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('C') & 0x8000))
+        {
+            is_coppied = true;
+
+            if (which_panel)
+            {
+                coppiednode = std::make_unique<node>(*currentSelectedLeft);
+                copied_path = left_panel_path;
+            }
+            else
+            {
+                coppiednode = std::make_unique<node>(*currentSelectedRight);
+                copied_path = right_panel_path;
+            }
+
+            Sleep(50);
+        }
+
+        //CTRL+V
+        if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('V') & 0x8000))
+        {
+            if (which_panel)
+            {
+                if (is_coppied) {
+                    if (coppiednode->is_directory)
+                    {
+                        copyDirectory(left_panel_path, coppiednode, copied_path);
+
+                    }
+                    else
+                    {
+                        copyFile(left_panel_path, coppiednode, copied_path);
+
+                    }
+                    modificat_stanga = true;
+                }
+            }
+            else
+            {
+                if (is_coppied) {
+                    if (coppiednode->is_directory)
+                    {
+                        copyDirectory(right_panel_path, coppiednode, copied_path);
+                    }
+                    else
+                    {
+                        copyFile(right_panel_path, coppiednode, copied_path);
+
+                    }
+                    modificat_dreapta = true;
+                }
+                }
+            Sleep(50);
+        }
+
+        if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState('Z') & 0x8000))
+        {
+            is_coppied = false;
+            if (which_panel)
+                modificat_stanga = true;
+            else
+                modificat_dreapta = true;
+            Sleep(15);
+        }
+
 
 
         if (ismouseclick(WM_LBUTTONDOWN))
@@ -1056,66 +1520,658 @@ int main()
 
             //scrollbar
             if (isPointInInterval(mouseX, mouseY, 615, 60, 640, 90))
-                if (maxim1 > 21 && ysus1 - latim1 > 92 && leftPanelFiles->prev && currentSelectedLeft->prev)
-                    ysus1 -= latim1, leftPanelFiles = leftPanelFiles->prev, currentSelectedLeft = currentSelectedLeft->prev;
+                if (maxim1 > 21 && ysus1 - latim1 > 92 && mod_leftPanelFiles->prev && currentSelectedLeft->prev)
+                    ysus1 -= latim1, mod_leftPanelFiles = mod_leftPanelFiles->prev, currentSelectedLeft = currentSelectedLeft->prev;
             if (isPointInInterval(mouseX, mouseY, 615, 630, 640, 660))
-                if (maxim1 > 21 && ysus1 + 21 * latim1 < 630 && leftPanelFiles->next && currentSelectedLeft->next)
-                    ysus1 += latim1, leftPanelFiles = leftPanelFiles->next, currentSelectedLeft = currentSelectedLeft->next;
+                if (maxim1 > 21 && ysus1 + 21 * latim1 < 627 && leftPanelFiles->next && currentSelectedLeft->next)
+                    ysus1 += latim1, mod_leftPanelFiles = mod_leftPanelFiles->next, currentSelectedLeft = currentSelectedLeft->next;
 
             if (isPointInInterval(mouseX, mouseY, 1255, 60, 1280, 90))
-                if (maxim2 > 21 && ysus2 - latim2 > 92 && rightPanelFiles->prev && currentSelectedRight->prev)
-                    ysus2 -= latim2, rightPanelFiles = rightPanelFiles->prev, currentSelectedRight = currentSelectedRight->prev;
+                if (maxim2 > 21 && ysus2 - latim2 > 92 && mod_rightPanelFiles->prev && currentSelectedRight->prev)
+                    ysus2 -= latim2, mod_rightPanelFiles = mod_rightPanelFiles->prev, currentSelectedRight = currentSelectedRight->prev;
             if (isPointInInterval(mouseX, mouseY, 1255, 630, 1280, 660))
-                if (maxim2 > 21 && ysus2 + 21 * latim2 < 630 && rightPanelFiles->next && currentSelectedRight->next)
-                    ysus2 += latim2, rightPanelFiles = rightPanelFiles->next, currentSelectedRight = currentSelectedRight->next;
+                if (maxim2 > 21 && ysus2 + 21 * latim2 < 627 && mod_rightPanelFiles->next && currentSelectedRight->next)
+                    ysus2 += latim2, mod_rightPanelFiles = mod_rightPanelFiles->next, currentSelectedRight = currentSelectedRight->next;
+
+            // lupe
+            if (isPointInInterval(mouseX, mouseY, 615, 30, 640, 60))
+            {
+                
+                if (!which_panel) which_panel = true;
+                // lupa stanga
+                string destinationFolder = "";
+                open_popup_window("Where to:", destinationFolder);
+                if (!destinationFolder.empty()) {
+                    if (!pathExists(destinationFolder))
+                    {
+                        popup_error_window("This path is not valid!");
+                    }
+                    else
+                    {
+                        if (destinationFolder.back() != '\\')
+                            destinationFolder += '\\';
+                        clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                        currentSelectedLeft = mod_leftPanelFiles = nullptr;
+                        AccessFolder(left_panel_path, destinationFolder, leftPanelFiles);
+                        currentSelectedLeft = leftPanelFiles;
+                        mod_leftPanelFiles = leftPanelFiles;
+                        modifiable_left_Y = startY;
+                        highlightItem(mod_leftPanelFiles, 4, modifiable_left_Y);
+                        modificat_stanga = false;
+                        maxim1 = -1;
+                        ysus1 = 98;
+                        yjos1 = 0;
+
+                    }
+                    destinationFolder.clear();
+                }
+                else
+                    continue;
+                Sleep(50);
+            }
+
+            if (isPointInInterval(mouseX, mouseY, 1255, 30, 1280, 60))
+            {
+                
+                if (which_panel)  which_panel = false;
+                // lupa dreapta
+                string destinationFolder = "";
+                open_popup_window("Where to:", destinationFolder);
+                if (!destinationFolder.empty()) {
+                    if (!pathExists(destinationFolder))
+                    {
+                        popup_error_window("This path is not valid!");
+                    }
+                    else
+                    {
+                        if (destinationFolder.back() != '\\')
+                            destinationFolder += '\\';
+                        clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                        AccessFolder(right_panel_path, destinationFolder, rightPanelFiles);
+                        currentSelectedRight = rightPanelFiles;
+                        mod_rightPanelFiles = rightPanelFiles;
+                        modifiable_right_Y = startY;
+                        highlightItem(mod_rightPanelFiles, 646, modifiable_right_Y);
+                        modificat_dreapta = false;
+                        maxim2 = -1;
+                        ysus2 = 98;
+                        yjos2 = 0;
+
+                    }
+                    destinationFolder.clear();
+                }
+                else
+                    continue;
+
+                Sleep(50);
+            }
+
+            //butonul muzical
+            if (isPointInInterval(mouseX, mouseY, 800, 663, 1140, 687) && muzica_ok)
+                muzica_ok = false;
+            if (isPointInInterval(mouseX, mouseY, 615, 660, 640, 690))
+            {
+
+                open_popup_window("Where to:", pathMusicFile);
+                if (!pathMusicFile.empty())
+                {
+
+                    if (!pathMusicExists(pathMusicFile))
+                    {
+                        popup_error_window("Invalid music Path!");
+                    }
+                    else
+                        if (!muzica_ok)
+                        {
+                            PlayMusic(pathMusicFile.c_str());
+                            muzica_ok = true;
+                        }
+                        else
+                        {
+                            StopMusic();
+                            PlayMusic(pathMusicFile.c_str());
+                        }
+                }
+                else
+                    continue;
+                Sleep(50);
+            }
+
 
 
             //comenzile rapide
             if (isPointInInterval(mouseX, mouseY, 0, 690, 252, 720))
             { //F2
-                int window2 = initwindow(500, 250, "Rename");
-                setcurrentwindow(window2);
-                setbkcolor(WHITE);
-                setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-                bar(0, 0, 500, 250);
-                getch();
-                closegraph();
+                string new_name = "";
+                open_popup_window("Rename to:", new_name);
+                if (!new_name.empty()) {
+                    bool ok = false;
+                    if (which_panel)
+                    {
+                        clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                        if (!currentSelectedLeft->is_directory)
+                        {
+                            Rename_File(currentSelectedLeft, new_name, left_panel_path, ok);
+                            if (ok) popup_verify_window("File renamed succesfully!");
+                        }
+                        else
+                        {
+                            Rename_Directory(currentSelectedLeft, new_name, left_panel_path, ok);
+                            if (ok) popup_verify_window("Directory renamed succesfully!");
+                        }
+                        // sort_by("Name", leftPanelFiles);
+                         //sort_by("Id", leftPanelFiles);
+                        modificat_stanga = true;
+                        modifiable_left_Y = startY;
+                        maxim1 = -1;
+                        ysus1 = 98;
+                        yjos1 = 0;
+                    }
+                    else
+                    {
+                        clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                        if (!currentSelectedRight->is_directory)
+                        {
+                            Rename_File(currentSelectedRight, new_name, right_panel_path, ok);
+                            if (ok) popup_verify_window("File renamed successfully!");
+                        }
+                        else
+                        {
+                            Rename_Directory(currentSelectedRight, new_name, right_panel_path, ok);
+                            if (ok) popup_verify_window("Directory renamed successfully!");
+                        }
+                        // sort_by("Name", rightPanelFiles);
+                         //sort_by("Id", rightPanelFiles);
+                        modificat_dreapta = true;
+                        modifiable_right_Y = startY;
+                        maxim2 = -1;
+                        ysus2 = 98;
+                        yjos2 = 0;
+                    }
+
+                    new_name.clear();
+
+                }
+                else
+                    continue;
+                Sleep(50);
             }
+
             if (isPointInInterval(mouseX, mouseY, 253, 690, 504, 720))
             { //F3
-                initwindow(500, 250, "MkDir");
-                setbkcolor(WHITE);
-                setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-                bar(0, 0, 500, 250);
-                getch();
-                closegraph();
+                string new_name = "";
+                open_popup_window("Name the directory to:", new_name);
+                if (!new_name.empty()) {
+                    bool ok = false;
+                    if (which_panel)
+                    {
+                        clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                        create_directory(leftPanelFiles, new_name, left_panel_path, ok);
+                        if (ok) popup_verify_window("Directory created successfully!");
+                        // sort_by("Name", leftPanelFiles);
+                         //sort_by("Id", leftPanelFiles);
+                        modificat_stanga = true;
+                        modifiable_left_Y = startY;
+                        maxim1 = -1;
+                        ysus1 = 98;
+                        yjos1 = 0;
+                    }
+                    else
+                    {
+                        clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                        create_directory(rightPanelFiles, new_name, right_panel_path, ok);
+                        if (ok) popup_verify_window("Directory created successfully!");
+                        // sort_by("Name", rightPanelFiles);
+                         //sort_by("Id", rightPanelFiles);
+                        modificat_dreapta = true;
+                        modifiable_right_Y = startY;
+                        maxim2 = -1;
+                        ysus2 = 98;
+                        yjos2 = 0;
+                    }
+                    new_name.clear();
+                }
+                else continue;
+                Sleep(50);
             }
             if (isPointInInterval(mouseX, mouseY, 505, 690, 756, 720))
             { //F4
-                initwindow(500, 250, "Copy");
-                setbkcolor(WHITE);
-                setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-                bar(0, 0, 500, 250);
-                getch();
-                closegraph();
+                string destinationfolder = "";
+                open_popup_window("Where to:", destinationfolder);
+                if (!destinationfolder.empty()) {
+                    bool ok = false;
+                    if (which_panel)
+                    {
+
+                        if (!currentSelectedLeft->is_directory)
+                        {
+                            copyFile(left_panel_path, currentSelectedLeft, destinationfolder, ok);
+                            if (ok) popup_verify_window("File copied successfully!");
+                        }
+                        else
+                        {
+                            copyDirectory(left_panel_path, currentSelectedLeft, destinationfolder, ok);
+                            if (ok) popup_verify_window("Directory copied successfully!");
+                        }
+                    }
+                    else
+                    {
+                        if (!currentSelectedRight->is_directory)
+                        {
+                            copyFile(right_panel_path, currentSelectedRight, destinationfolder, ok);
+                            if (ok) popup_verify_window("File copied successfully!");
+                        }
+                        else
+                        {
+                            copyDirectory(right_panel_path, currentSelectedRight, destinationfolder, ok);
+                            if (ok) popup_verify_window("Directory copied successfully!");
+                        }
+                    }
+                    destinationfolder.clear();
+                }
+                else
+                    continue;
+                Sleep(50);
             }
+
+            if (isPointInInterval(mouseX, mouseY, 1010, 690, 1280, 720))
+            {
+                //F5
+                bool ok = false;
+                if (which_panel)
+                {
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    if (!currentSelectedLeft->is_directory)
+                    {
+                        deleteFile(left_panel_path, currentSelectedLeft, leftPanelFiles, ok);
+                        popup_verify_window("File deleted successfully!");
+                    }
+                    else
+                        if (currentSelectedLeft->name == "..")
+                            popup_verify_window("Failed to delete the directory!");
+                        else
+                        {
+                            deleteDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, ok);
+                            popup_verify_window("Directory deleted successfully!");
+                        }
+                    modifiable_left_Y = startY;
+                    modificat_stanga = true;
+                    maxim1 = -1;
+                    ysus1 = 98;
+                    yjos1 = 0;
+                }
+                else
+                {
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    if (!currentSelectedRight->is_directory)
+                    {
+                        deleteFile(right_panel_path, currentSelectedRight, rightPanelFiles, ok);
+                        popup_verify_window("File deleted successfully!");
+                    }
+                    else
+                    {
+                        deleteDirectory(right_panel_path, currentSelectedRight, rightPanelFiles, ok);
+                        popup_verify_window("Directory deleted successfully!");
+                    }
+                    modifiable_right_Y = startY;
+                    modificat_dreapta = true;
+                    maxim2 = -1;
+                    ysus2 = 98;
+                    yjos2 = 0;
+                }
+                Sleep(50);
+            }
+
 
             if (isPointInInterval(mouseX, mouseY, 1009, 690, 1280, 720))
             { //F6
-                initwindow(500, 250, "Move");
-                setbkcolor(WHITE);
-                setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-                bar(0, 0, 500, 250);
-                while (!kbhit())
-                {
-                    delay(100);
+                string destinationFolder = "";
+                open_popup_window("Move to:", destinationFolder);
+                if (!destinationFolder.empty()) {
+                    bool ok = false;
+                    if (which_panel)
+                    {
+                        clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                        if (!currentSelectedLeft->is_directory)
+                        {
+                            moveFile(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder, ok);
+                            if (ok) popup_verify_window("File moved succesfully!");
+                        }
+                        else
+                        {
+                            moveDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder, ok);
+                            if (ok) popup_verify_window("File moved succesfully!");
+                        }
+                        modifiable_left_Y = startY;
+                        modificat_stanga = true;
+                        maxim1 = -1;
+                        ysus1 = 98;
+                        yjos1 = 0;
+                    }
+                    else
+                    {
+                        clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                        if (!currentSelectedRight->is_directory)
+                        {
+                            moveFile(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder, ok);
+                            if (ok) popup_verify_window("File moved succesfully!");
+                        }
+                        else
+                        {
+                            moveDirectory(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder, ok);
+                            if (ok) popup_verify_window("File moved succesfully!");
+                        }
+                        modifiable_right_Y = startY;
+                        modificat_dreapta = true;
+                        maxim2 = -1;
+                        ysus2 = 98;
+                        yjos2 = 0;
+                    }
+                    destinationFolder.clear();
                 }
-                closegraph();
+                else
+                    continue;
+                Sleep(50);
             }
 
-            Sleep(70);
+            //sortare panel stanga
+            if (isPointInInterval(mouseX, mouseY, 0, 60, 270, 90))
+            {
+                which_panel = true;
+                if (sort1 == 1)
+                {
+                    sort1 = 2;
+
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    sort_by("Name", leftPanelFiles, false);
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+                    modifiable_left_Y = startY;
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare descresc dupa name
+                }
+
+                else
+                {
+                    sort1 = 1;
+
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Name", leftPanelFiles, true);
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare cresc dupa name
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 270, 60, 355, 90))
+            {
+                which_panel = true;
+                if (sort1 == 3)
+                {
+                    sort1 = 4;
+
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Ext", leftPanelFiles, false);
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare descresc extensie
+                }
+
+                else
+                {
+                    sort1 = 3;
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Ext", leftPanelFiles, true);
+
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare cresc extensie
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 355, 60, 440, 90))
+            {
+                which_panel = true;
+                if (sort1 == 5)
+                {
+                    sort1 = 6;
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Size", leftPanelFiles, false);
+
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare descresc size
+                }
+
+                else
+                {
+                    sort1 = 5;
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Size", leftPanelFiles, true);
+
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare cresc size
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 440, 60, 615, 90))
+            {
+                which_panel = true;
+                if (sort1 == 7)
+                {
+                    sort1 = 8;
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Date", leftPanelFiles, false);
+
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare descresc data
+                }
+
+                else
+                {
+                    sort1 = 7;
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    currentSelectedLeft = nullptr;
+                    mod_leftPanelFiles = nullptr;
+                    modifiable_left_Y = startY;
+                    sort_by("Date", leftPanelFiles, true);
+                    currentSelectedLeft = leftPanelFiles;
+                    mod_leftPanelFiles = leftPanelFiles;
+                    highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                    ysus1 = 98;
+                    yjos1 = 0;
+                    //sortare cresc data
+                }
+            }
+
+            //sortare panel dreapta
+            if (isPointInInterval(mouseX, mouseY, 660, 60, 910, 90))
+            {
+                which_panel = false;
+                if (sort2 == 1)
+                {
+                    sort2 = 2;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Name", rightPanelFiles, false);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare descresc dupa name
+                }
+
+                else
+                {
+                    sort2 = 1;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Name", rightPanelFiles, true);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare cresc dupa name
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 910, 60, 995, 90))
+            {
+                which_panel = false;
+                if (sort2 == 3)
+                {
+                    sort2 = 4;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Ext", rightPanelFiles, false);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare descresc extensie
+                }
+
+                else
+                {
+                    sort2 = 3;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Ext", rightPanelFiles, true);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare cresc extensie
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 995, 60, 1080, 90))
+            {
+                which_panel = false;
+                if (sort2 == 5)
+                {
+                    sort2 = 6;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Size", rightPanelFiles, false);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare descresc size
+                }
+
+                else
+                {
+                    sort2 = 5;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Size", rightPanelFiles, true);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare cresc size
+                }
+            }
+            if (isPointInInterval(mouseX, mouseY, 1080, 60, 1255, 90))
+            {
+                which_panel = false;
+                if (sort2 == 7)
+                {
+                    sort2 = 8;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Date", rightPanelFiles, false);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare descresc data
+                }
+
+                else
+                {
+                    sort2 = 7;
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    mod_rightPanelFiles = nullptr;
+                    currentSelectedRight = nullptr;
+                    modifiable_right_Y = startY;
+                    sort_by("Date", rightPanelFiles, true);
+                    currentSelectedRight = rightPanelFiles;
+                    mod_rightPanelFiles = rightPanelFiles;
+                    highlightItem(currentSelectedRight, 645, modifiable_right_Y);
+                    ysus2 = 98;
+                    yjos2 = 0;
+                    //sortare cresc data
+                }
+            }
         }
 
+        //afisare scrollbar
         if (maxim1 < 22)
             yjos1 = 627;
         else
@@ -1126,10 +2182,6 @@ int main()
         else
             yjos2 = ysus2 + 21 * latim2;
         setfillstyle(SOLID_FILL, COLOR(47, 61, 76));
-        if (which_panel && !currentSelectedLeft->next)
-            yjos1 = 627;
-        if (!which_panel && !currentSelectedRight->next)
-            yjos2 = 627;
         if (yjos1 > 627)
             yjos1 = 627;
         if (yjos2 > 627)
@@ -1137,19 +2189,76 @@ int main()
         bar(620, ysus1, 637, yjos1);
         bar(1260, ysus2, 1277, yjos2);
 
+        //afisare sageti sortare
+        if (mousex() >= 0 && mousex() <= 615 && mousey() >= 60 && mousey() <= 90)
+        {
+            if (sort1 == 2)
+                DrawArrow(257, 76, 267, 86, "v");
+            else
+                if (sort1 == 1)
+                    DrawArrow(257, 80, 267, 90, "^");
+                else
+                    if (sort1 == 4)
+                        DrawArrow(344, 76, 354, 86, "v");
+                    else
+                        if (sort1 == 3)
+                            DrawArrow(344, 80, 354, 90, "^");
+                        else
+                            if (sort1 == 6)
+                                DrawArrow(431, 77, 441, 86, "v");
+                            else
+                                if (sort1 == 5)
+                                    DrawArrow(431, 80, 441, 90, "^");
+                                else
+                                    if (sort1 == 8)
+                                        DrawArrow(603, 76, 613, 86, "v");
+                                    else
+                                        if (sort1 == 7)
+                                            DrawArrow(603, 80, 613, 90, "^");
+        }
+
+        if (mousex() >= 640 && mousex() <= 1255 && mousey() >= 60 && mousey() <= 90)
+        {
+            if (sort2 == 2)
+                DrawArrow(898, 76, 908, 86, "v");
+            else
+                if (sort2 == 1)
+                    DrawArrow(898, 80, 908, 90, "^");
+                else
+                    if (sort2 == 4)
+                        DrawArrow(985, 76, 995, 86, "v");
+                    else
+                        if (sort2 == 3)
+                            DrawArrow(985, 80, 995, 90, "^");
+                        else
+                            if (sort2 == 6)
+                                DrawArrow(1070, 77, 1080, 86, "v");
+                            else
+                                if (sort2 == 5)
+                                    DrawArrow(1070, 80, 1080, 90, "^");
+                                else
+                                    if (sort2 == 8)
+                                        DrawArrow(1243, 76, 1253, 86, "v");
+                                    else
+                                        if (sort2 == 7)
+                                            DrawArrow(1243, 80, 1253, 90, "^");
+        }
+
 
         if (GetAsyncKeyState(VK_RETURN) & 0x8000)
         {
             if (which_panel) {
                 if (currentSelectedLeft != nullptr) {
                     if (currentSelectedLeft->is_directory) {
-                        AccessFolder(left_panel_path, currentSelectedLeft, leftPanelFiles);
                         clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                        AccessFolder(left_panel_path, currentSelectedLeft, leftPanelFiles);
+                        mod_leftPanelFiles = leftPanelFiles;
                         modifiable_left_Y = startY;
-                        highlightItem(leftPanelFiles, 4, modifiable_left_Y);
+                        // highlightItem(currentSelectedLeft, 4, modifiable_left_Y);
+                        modificat_stanga = false;
                         maxim1 = -1;
-                        ysus1 = 97, ysus2 = 97;
-                        yjos1 = 0, yjos2 = 0;
+                        ysus1 = 98;
+                        yjos1 = 0;
                     }
                     else {
                         OpenFile(left_panel_path, currentSelectedLeft);
@@ -1159,13 +2268,14 @@ int main()
             else {
                 if (currentSelectedRight != nullptr) {
                     if (currentSelectedRight->is_directory) {
-                        clearSelectionHighlight(currentSelectedRight, 644, modifiable_right_Y);
+                        clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
                         AccessFolder(right_panel_path, currentSelectedRight, rightPanelFiles);
+                        mod_rightPanelFiles = rightPanelFiles;
                         modifiable_right_Y = startY;
-                        highlightItem(rightPanelFiles, 644, modifiable_right_Y);
+                        highlightItem(currentSelectedRight, 645, modifiable_right_Y);
                         maxim2 = -1;
-                        ysus1 = 97, ysus2 = 97;
-                        yjos1 = 0, yjos2 = 0;
+                        ysus2 = 98, yjos2 = 0;
+                        modificat_dreapta = false;
                     }
                     else {
                         OpenFile(right_panel_path, currentSelectedRight);
@@ -1176,123 +2286,272 @@ int main()
         }
 
 
+        if (GetAsyncKeyState(VK_F1) & 0x8000)
+        {
+
+            if (which_panel)
+                if (antivirus.malware_Checking(currentSelectedLeft))
+                    popup_error_window("This file contains a virus!");
+                else
+                    popup_verify_window("This file is safe to use!");
+            else
+                if (antivirus.malware_Checking(currentSelectedRight))
+                    popup_error_window("This file contains a virus!");
+                else
+                    popup_verify_window("This file is safe to use!");
+            Sleep(50);
+        }
+
+
         if (GetAsyncKeyState(VK_F2) & 0x8000)
         {
             string new_name = "";
             open_popup_window("Rename to:", new_name);
-            if (which_panel)
-            {
-                if (!currentSelectedLeft->is_directory)
-                    Rename_File(currentSelectedLeft, new_name, left_panel_path);
+            if (!new_name.empty()) {
+                bool ok = false;
+                if (which_panel)
+                {
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    if (!currentSelectedLeft->is_directory)
+                    {
+                        Rename_File(currentSelectedLeft, new_name, left_panel_path, ok);
+                        if (ok) popup_verify_window("File renamed succesfully!");
+                    }
+                    else
+                    {
+                        Rename_Directory(currentSelectedLeft, new_name, left_panel_path, ok);
+                        if (ok) popup_verify_window("Directory renamed succesfully!");
+                    }
+                    // sort_by("Name", leftPanelFiles);
+                     //sort_by("Id", leftPanelFiles);
+                    modificat_stanga = true;
+                    modifiable_left_Y = startY;
+                    maxim1 = -1;
+                    ysus1 = 98;
+                    yjos1 = 0;
+                }
                 else
-                    Rename_Directory(currentSelectedLeft, new_name, left_panel_path);
-                sort_by("Name", leftPanelFiles);
+                {
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    if (!currentSelectedRight->is_directory)
+                    {
+                        Rename_File(currentSelectedRight, new_name, right_panel_path, ok);
+                        if (ok) popup_verify_window("File renamed successfully!");
+                    }
+                    else
+                    {
+                        Rename_Directory(currentSelectedRight, new_name, right_panel_path, ok);
+                        if (ok) popup_verify_window("Directory renamed successfully!");
+                    }
+                    // sort_by("Name", rightPanelFiles);
+                     //sort_by("Id", rightPanelFiles);
+                    modificat_dreapta = true;
+                    modifiable_right_Y = startY;
+                    maxim2 = -1;
+                    ysus2 = 98;
+                    yjos2 = 0;
+                }
+
+                new_name.clear();
+
             }
             else
-            {
-                if (!currentSelectedRight->is_directory)
-                    Rename_File(currentSelectedRight, new_name, right_panel_path);
-                else
-                    Rename_Directory(currentSelectedRight, new_name, right_panel_path);
-                sort_by("Name", rightPanelFiles);
-            }
-            new_name.clear();
-            Sleep(25);
+                continue;
+            Sleep(50);
         }
 
         if (GetAsyncKeyState(VK_F3) & 0x8000)
         {
             string new_name = "";
             open_popup_window("Name the directory to:", new_name);
-            if (which_panel)
-                create_directory(leftPanelFiles, new_name);
-            else
-                create_directory(rightPanelFiles, new_name);
-
-            new_name.clear();
+            if (!new_name.empty()) {
+                bool ok = false;
+                if (which_panel)
+                {
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    create_directory(leftPanelFiles, new_name, left_panel_path, ok);
+                    if (ok) popup_verify_window("Directory created successfully!");
+                    // sort_by("Name", leftPanelFiles);
+                     //sort_by("Id", leftPanelFiles);
+                    modificat_stanga = true;
+                    modifiable_left_Y = startY;
+                    maxim1 = -1;
+                    ysus1 = 98;
+                    yjos1 = 0;
+                }
+                else
+                {
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    create_directory(rightPanelFiles, new_name, right_panel_path, ok);
+                    if (ok) popup_verify_window("Directory created successfully!");
+                    // sort_by("Name", rightPanelFiles);
+                     //sort_by("Id", rightPanelFiles);
+                    modificat_dreapta = true;
+                    modifiable_right_Y = startY;
+                    maxim2 = -1;
+                    ysus2 = 98;
+                    yjos2 = 0;
+                }
+                new_name.clear();
+            }
+            else continue;
+            Sleep(50);
         }
 
         if (GetAsyncKeyState(VK_F4) & 0x8000)
         {
             string destinationfolder = "";
             open_popup_window("Where to:", destinationfolder);
+            if (!destinationfolder.empty()) {
+                bool ok = false;
+                if (which_panel)
+                {
 
-            if (which_panel)
-            {
-
-                if (!currentSelectedLeft->is_directory)
-                    copyFile(left_panel_path, currentSelectedLeft, destinationfolder);
+                    if (!currentSelectedLeft->is_directory)
+                    {
+                        copyFile(left_panel_path, currentSelectedLeft, destinationfolder, ok);
+                        if (ok) popup_verify_window("File copied successfully!");
+                    }
+                    else
+                    {
+                        copyDirectory(left_panel_path, currentSelectedLeft, destinationfolder, ok);
+                        if (ok) popup_verify_window("Directory copied successfully!");
+                    }
+                }
                 else
-                    copyDirectory(left_panel_path, currentSelectedLeft, destinationfolder);
+                {
+                    if (!currentSelectedRight->is_directory)
+                    {
+                        copyFile(right_panel_path, currentSelectedRight, destinationfolder, ok);
+                        if (ok) popup_verify_window("File copied successfully!");
+                    }
+                    else
+                    {
+                        copyDirectory(right_panel_path, currentSelectedRight, destinationfolder, ok);
+                        if (ok) popup_verify_window("Directory copied successfully!");
+                    }
+                }
+                destinationfolder.clear();
             }
             else
-            {
-                if (!currentSelectedRight->is_directory)
-                    copyFile(right_panel_path, currentSelectedRight, destinationfolder);
-                else
-                    copyDirectory(right_panel_path, currentSelectedRight, destinationfolder);
-            }
-            destinationfolder.clear();
-            Sleep(25);
+                continue;
+            Sleep(50);
         }
 
         if (GetAsyncKeyState(VK_F5) & 0x8000)
         {
+            bool ok = false;
             if (which_panel)
             {
+
+                clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
                 if (!currentSelectedLeft->is_directory)
-                    deleteFile(left_panel_path, currentSelectedLeft, leftPanelFiles);
+                {
+                    deleteFile(left_panel_path, currentSelectedLeft, leftPanelFiles, ok);
+                    if (ok) popup_verify_window("File deleted successfully!");
+                }
                 else
                     if (currentSelectedLeft->name == "..")
-                        popup_error_window("Failed to delete the directory!");
+                        popup_verify_window("Failed to delete the directory!");
                     else
-                        deleteDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles);
+                    {
+                        deleteDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, ok);
+                        if (ok) popup_verify_window("Directory deleted succesfully!");
+                    }
+                modifiable_left_Y = startY;
+                modificat_stanga = true;
+                maxim1 = -1;
+                ysus1 = 98;
+                yjos1 = 0;
             }
             else
             {
+                clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
                 if (!currentSelectedRight->is_directory)
-                    deleteFile(right_panel_path, currentSelectedRight, rightPanelFiles);
+                {
+                    deleteFile(right_panel_path, currentSelectedRight, rightPanelFiles, ok);
+                    if (ok) popup_verify_window("File deleted succesfully!");
+                }
                 else
-                    deleteDirectory(right_panel_path, currentSelectedRight, rightPanelFiles);
+                    if (currentSelectedLeft->name == "..")
+                        popup_verify_window("Failed to delete the directory!");
+                    else
+                    {
+                        deleteDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, ok);
+                        if (ok) popup_verify_window("Directory deleted succesfully!");
+                    }
+                modifiable_right_Y = startY;
+                modificat_dreapta = true;
+                maxim2 = -1;
+                ysus2 = 98;
+                yjos2 = 0;
             }
-            Sleep(25);
+            Sleep(50);
         }
 
         if (GetAsyncKeyState(VK_F6) & 0x8000)
         {
             string destinationFolder = "";
             open_popup_window("Move to:", destinationFolder);
-            if (which_panel)
-            {
-                if (!currentSelectedLeft->is_directory)
-                    moveFile(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder);
+            if (!destinationFolder.empty()) {
+                bool ok = false;
+                if (which_panel)
+                {
+                    clearSelectionHighlight(currentSelectedLeft, 4, modifiable_left_Y);
+                    if (!currentSelectedLeft->is_directory)
+                    {
+                        moveFile(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder, ok);
+                        if (ok) popup_verify_window("File moved succesfully!");
+                    }
+                    else
+                    {
+                        moveDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder, ok);
+                        if (ok) popup_verify_window("File moved succesfully!");
+                    }
+                    modifiable_left_Y = startY;
+                    modificat_stanga = true;
+                    maxim1 = -1;
+                    ysus1 = 98;
+                    yjos1 = 0;
+                }
                 else
-                    moveDirectory(left_panel_path, currentSelectedLeft, leftPanelFiles, destinationFolder);
+                {
+                    clearSelectionHighlight(currentSelectedRight, 645, modifiable_right_Y);
+                    if (!currentSelectedRight->is_directory)
+                    {
+                        moveFile(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder, ok);
+                        if (ok) popup_verify_window("File moved succesfully!");
+                    }
+                    else
+                    {
+                        moveDirectory(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder, ok);
+                        if (ok) popup_verify_window("File moved succesfully!");
+                    }
+                    modifiable_right_Y = startY;
+                    modificat_dreapta = true;
+                    maxim2 = -1;
+                    ysus2 = 98;
+                    yjos2 = 0;
+                }
+                destinationFolder.clear();
             }
             else
-            {
-                if (!currentSelectedRight->is_directory)
-                    moveFile(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder);
-                else
-                    moveDirectory(right_panel_path, currentSelectedRight, rightPanelFiles, destinationFolder);
-            }
-            destinationFolder.erase(destinationFolder.begin(), destinationFolder.end());
-            Sleep(25);
+                continue;
+            Sleep(50);
         }
 
         //delay(50);
         Sleep(50);
-        setvisualpage(page);
+        setvisualpage(1 - page);
         page = 1 - page;
 
     }
 
     closegraph();
-    Free_Memory(currentSelectedLeft);
-    Free_Memory(currentSelectedRight);
+    openPopupWindows.clear();
+    delete coppiednode.release();
+    multiselect.clear();
     Free_Memory(leftPanelFiles);
     Free_Memory(rightPanelFiles);
-
-
     return 0;
 }
